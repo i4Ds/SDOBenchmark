@@ -1,12 +1,13 @@
 import argparse
 import datetime as dt
-import simplejson as json
+import logging
 import os
 
-import logging
+import dateutil.parser
+import simplejson as json
 
 import flares.util as util
-from flares.data.load import HEK_DATE_FORMAT, load_hek_data
+from flares.data.load import HEK_DATE_FORMAT, load_hek_data, load_goes_flux
 
 # TODO: Think about module structure once again
 
@@ -19,10 +20,8 @@ logger = logging.getLogger(__name__)
 
 
 def main(args):
-    # TODO: Use path helper or smth like that
-    base_directory = os.path.abspath(os.path.expanduser(args.directory))
-    raw_dir = os.path.join(base_directory, "raw")
-    load_raw(raw_dir, args.start, args.end)
+    path_helper = util.PathHelper(args.directory)
+    load_raw(path_helper.raw_directory, args.start, args.end)
 
 
 def load_raw(output_directory: str, start: dt.datetime, end: dt.datetime):
@@ -33,6 +32,27 @@ def load_raw(output_directory: str, start: dt.datetime, end: dt.datetime):
         os.makedirs(output_directory, exist_ok=False)
 
     date_suffix = f"{start.strftime(HEK_DATE_FORMAT)}_{end.strftime(HEK_DATE_FORMAT)}"
+
+    # GOES flux
+    goes_raw_path = os.path.join(output_directory, f"goes")
+    logger.info("Loading GOES flux to %s", goes_raw_path)
+
+    os.makedirs(goes_raw_path, exist_ok=True)
+
+    for current_date in util.date_range(start, end):
+        date_str = current_date.strftime("%Y%m%d")
+        target_file_name = f"g15_xrs_2s_{date_str}_{date_str}.csv"
+        target_file_path = os.path.join(goes_raw_path, target_file_name)
+
+        if not os.path.exists(target_file_path):
+            raw_flux_data = load_goes_flux(current_date)
+            if raw_flux_data is not None:
+                with open(target_file_path, "w") as f:
+                    f.write(raw_flux_data)
+
+    logger.info("Loaded GOES flux")
+
+    # HEK events
     events_raw_path = os.path.join(output_directory, f"events_{date_suffix}.json")
 
     if os.path.isfile(events_raw_path):
@@ -48,11 +68,15 @@ def load_raw(output_directory: str, start: dt.datetime, end: dt.datetime):
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    # TODO: Date parsing
-    # TODO: Fix arg names
-    parser.add_argument("directory", help="Output directory")
-    parser.add_argument("--start", default=DEFAULT_ARGS["start"], help="First date and time (inclusive)")
-    parser.add_argument("--end", default=DEFAULT_ARGS["end"], help="Last date and time (exclusive)")
+    parser.add_argument(
+        "directory", help="Output directory"
+    )
+    parser.add_argument(
+        "--start", default=DEFAULT_ARGS["start"], type=dateutil.parser.parse, help="First date and time (inclusive)"
+    )
+    parser.add_argument(
+        "--end", default=DEFAULT_ARGS["end"], type=dateutil.parser.parse, help="Last date and time (exclusive)"
+    )
 
     return parser.parse_args()
 
@@ -60,6 +84,4 @@ def parse_args():
 if __name__ == "__main__":
     util.configure_logging()
 
-    args = parse_args()
-
-    main(args)
+    main(parse_args())
