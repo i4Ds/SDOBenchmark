@@ -7,7 +7,7 @@ import dateutil.parser
 import simplejson as json
 
 import flares.util as util
-from flares.data.load import HEK_DATE_FORMAT, load_hek_data, load_goes_flux
+from flares.data.load import HEK_DATE_FORMAT, load_hek_data, load_goes_flux, goes_files
 
 # TODO: Think about module structure once again
 
@@ -39,9 +39,7 @@ def load_raw(output_directory: str, start: dt.datetime, end: dt.datetime):
 
     os.makedirs(goes_raw_path, exist_ok=True)
 
-    for current_date in util.date_range(start, end):
-        date_str = current_date.strftime("%Y%m%d")
-        target_file_name = f"g15_xrs_2s_{date_str}_{date_str}.csv"
+    for target_file_name, current_date in goes_files(start, end):
         target_file_path = os.path.join(goes_raw_path, target_file_name)
 
         if not os.path.exists(target_file_path):

@@ -1,9 +1,11 @@
 import datetime as dt
 import logging
 import os
-from typing import Iterable, Optional
+from typing import Iterable, Optional, Tuple
 
 import requests
+
+import flares.util as util
 
 HEK_DATE_FORMAT = "%Y-%m-%dT%H:%M:%S"
 GOES_BASE_URL = "https://satdat.ngdc.noaa.gov/sem/goes/data/full"
@@ -44,6 +46,14 @@ def load_hek_data(start_datetime: dt.datetime, end_datetime: dt.datetime) -> Ite
 
         logger.info("Loaded page %d, last date was %s", page, end_date)
         page += 1
+
+
+def goes_files(start_datetime: dt.datetime, end_datetime: dt.datetime) -> Iterable[Tuple[str, dt.date]]:
+    for current_date in util.date_range(start_datetime, end_datetime):
+        date_str = current_date.strftime("%Y%m%d")
+        target_file_name = f"g15_xrs_2s_{date_str}_{date_str}.csv"
+
+        yield target_file_name, current_date
 
 
 def load_goes_flux(date: dt.date) -> Optional[str]:
