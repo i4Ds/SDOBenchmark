@@ -31,6 +31,10 @@ class PathHelper(object):
     def raw_directory(self):
         return os.path.join(self._data_directory, "raw")
 
+    @property
+    def intermediate_directory(self):
+        return os.path.join(self._data_directory, "intermediate")
+
 
 def date_range(start_datetime: dt.datetime, end_datetime: dt.datetime) -> Iterable[dt.date]:
     for day_offset in range((end_datetime - start_datetime).days):
