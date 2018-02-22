@@ -37,6 +37,7 @@ logger = logging.getLogger(__name__)
 # TODO: How should data be subsampled (especially the GOES curve for non-flaring samples)
 # TODO: Is the Mt. Wilson Class relevant for sampling?
 # TODO: Make sure sampling makes actual sense
+# TODO: Currently, the peak flux might be
 
 
 def main():
@@ -144,14 +145,14 @@ def transform_raw(
         _save_ranges(ranges_path, ranges)
         logger.info("Saved ranges")
 
-    ranges_test_path = os.path.join(output_directory, f"ranges_test_{date_suffix}.csv")
-    ranges_training_path = os.path.join(output_directory, f"ranges_training_{date_suffix}.csv")
+    samples_test_path = os.path.join(output_directory, f"samples_test_{date_suffix}.csv")
+    samples_training_path = os.path.join(output_directory, f"samples_training_{date_suffix}.csv")
 
-    if os.path.isfile(ranges_test_path) and os.path.isfile(ranges_training_path):
-        logger.info("Using existing test/training split at %s and %s", ranges_test_path, ranges_training_path)
+    if os.path.isfile(samples_test_path) and os.path.isfile(samples_training_path):
+        logger.info("Using existing test/training sets at %s and %s", samples_test_path, samples_training_path)
     else:
         logger.info(
-            "Test/training split not found, will be sampled to %s and %s", ranges_test_path, ranges_training_path
+            "Test/training sets not found, will be sampled to %s and %s", samples_test_path, samples_training_path
         )
 
         all_ranges = pd.read_csv(
@@ -161,10 +162,15 @@ def transform_raw(
             parse_dates=["start", "end"]
         )
 
-        test_ranges, training_ranges = sample_ranges(all_ranges, seed)
-        test_ranges.to_csv(ranges_test_path, sep=";")
-        training_ranges.to_csv(ranges_training_path, sep=";")
-        logger.info("Sampled test/training split")
+        test_samples, training_samples = sample_ranges(
+            all_ranges,
+            input_duration,
+            output_duration,
+            seed
+        )
+        test_samples.to_csv(samples_test_path, sep=";")
+        training_samples.to_csv(samples_training_path, sep=";")
+        logger.info("Sampled test/training sets")
 
 
 def _save_ranges(output_path: str, ranges: Dict[int, intervaltree.IntervalTree]):

@@ -272,7 +272,12 @@ def _assert_active_region_time_ranges(
                 f"{interval} overlaps unmapped flare ranges {unmapped_ranges[interval]}"
 
 
-def sample_ranges(all_ranges: pd.DataFrame, seed: int) -> Tuple[pd.DataFrame, pd.DataFrame]:
+def sample_ranges(
+        all_ranges: pd.DataFrame,
+        input_duration: dt.timedelta,
+        output_duration: dt.timedelta,
+        seed: int
+) -> Tuple[pd.DataFrame, pd.DataFrame]:
     # Try to roughly group all active regions by their max flare class (ignoring subclasses)
     stratified_regions = collections.defaultdict(list)
     for noaa_num, region_ranges in all_ranges.groupby(["noaa_num"]):
@@ -330,4 +335,62 @@ def sample_ranges(all_ranges: pd.DataFrame, seed: int) -> Tuple[pd.DataFrame, pd
 
     assert len(all_ranges) == len(ranges_test) + len(ranges_training)
 
-    return ranges_test, ranges_training
+    samples_test = _sample_ranges(
+        ranges_test,
+        input_duration,
+        output_duration,
+        seed
+    )
+
+    samples_training = _sample_ranges(
+        ranges_training,
+        input_duration,
+        output_duration,
+        seed
+    )
+
+    logger.info("Sampled %d test and %d training samples", len(samples_test), len(samples_training))
+
+    return samples_test, samples_training
+
+
+def _sample_ranges(
+        ranges: pd.DataFrame,
+        input_duration: dt.timedelta,
+        output_duration: dt.timedelta,
+        seed: int
+) -> pd.DataFrame:
+    np.random.seed(seed)
+
+    samples = pd.DataFrame(columns=ranges.columns)
+
+    for range_id, range_values in ranges.iterrows():
+        max_samples = 1 + (range_values["end"] - range_values["start"] - output_duration) // input_duration
+        current_samples = 1 if max_samples == 1 else np.random.randint(1, max_samples + 1)
+
+        current_min_offset = range_values["start"] - input_duration
+        for sample_idx in range(current_samples):
+            # TODO: I think this is statistically not correct
+
+            # Calculate maximum offset
+            current_max_offset = range_values["end"] - output_duration - input_duration - (
+                        current_samples - sample_idx - 1) * input_duration
+            assert range_values["start"] - input_duration <= current_min_offset <= current_max_offset <= range_values[
+                "end"] - input_duration - output_duration
+
+            # Use random offset in range
+            current_offset_range = (current_max_offset - current_min_offset) // dt.timedelta(seconds=1) + 1
+            assert current_offset_range > 0
+            current_offset_seconds = np.random.randint(0, current_offset_range)
+            current_offset = current_min_offset + dt.timedelta(seconds=current_offset_seconds)
+            assert range_values["start"] - input_duration <= current_offset <= current_max_offset
+
+            sample_id = f"{range_id}_{sample_idx}"
+            samples.loc[sample_id] = (
+                range_values["noaa_num"], current_offset, current_offset + input_duration, range_values["type"]
+            )
+
+            # Update min offset
+            current_min_offset = current_offset + input_duration
+
+    return samples
