@@ -3,13 +3,12 @@ import logging
 import os
 from typing import Iterable
 
-
 HEK_DATE_FORMAT = "%Y-%m-%dT%H:%M:%S"
 
 
-def configure_logging():
+def configure_logging(level=logging.INFO):
     logging.basicConfig(
-        level=logging.INFO,
+        level=level,
         format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S"
     )
