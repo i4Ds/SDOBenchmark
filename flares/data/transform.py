@@ -1,8 +1,11 @@
+import collections
 import datetime as dt
 import logging
 from typing import List, Tuple, Dict
 
 import intervaltree
+import numpy as np
+import pandas as pd
 
 import flares.util as util
 
@@ -267,3 +270,64 @@ def _assert_active_region_time_ranges(
         for interval in region_ranges:
             assert len(unmapped_ranges[interval]) == 0, \
                 f"{interval} overlaps unmapped flare ranges {unmapped_ranges[interval]}"
+
+
+def sample_ranges(all_ranges: pd.DataFrame, seed: int) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    # Try to roughly group all active regions by their max flare class (ignoring subclasses)
+    stratified_regions = collections.defaultdict(list)
+    for noaa_num, region_ranges in all_ranges.groupby(["noaa_num"]):
+        max_class = region_ranges[region_ranges["type"] != "free"]["type"].max()
+
+        if pd.isna(max_class):
+            stratified_regions["free"].append(noaa_num)
+        else:
+            stratified_regions[max_class[:2]].append(noaa_num)
+
+    # TODO: We want 12673 in the test set
+
+    np.random.seed(seed)
+
+    test_regions = set()
+    training_regions = set()
+
+    # Sample flare regions
+    for current_max_class, current_active_regions in sorted(stratified_regions.items(), reverse=True):
+        target_indices = []
+
+        if current_max_class == "free":
+            continue
+
+        if len(current_active_regions) < 6:
+            # Take one active region with 50% probability
+            if np.random.rand() < 0.5:
+                target_indices = np.random.choice(len(current_active_regions), (1,))
+        else:
+            # TODO: Three is just an arbitrary number
+            # Take three
+            target_indices = np.random.choice(len(current_active_regions), 3)
+
+        for idx, current_region in enumerate(current_active_regions):
+            if idx in target_indices:
+                test_regions.add(current_region)
+            else:
+                training_regions.add(current_region)
+
+    # Sample free regions
+    free_active_regions = stratified_regions["free"]
+    test_free_region_indices = np.random.choice(len(free_active_regions), len(test_regions))
+    for idx, current_active_region in enumerate(free_active_regions):
+        if idx in test_free_region_indices:
+            test_regions.add(current_active_region)
+        else:
+            training_regions.add(current_active_region)
+
+    logger.info("Sampled %d test and %d training active regions", len(test_regions), len(training_regions))
+
+    # Split range frame into test and training frames
+    ranges_test = all_ranges[all_ranges["noaa_num"].isin(test_regions)]
+    ranges_training = all_ranges[all_ranges["noaa_num"].isin(training_regions)]
+    logger.info("Split into %d test and %d training ranges", len(ranges_test), len(ranges_training))
+
+    assert len(all_ranges) == len(ranges_test) + len(ranges_training)
+
+    return ranges_test, ranges_training

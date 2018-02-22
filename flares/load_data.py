@@ -7,17 +7,19 @@ from typing import Dict
 
 import dateutil.parser
 import intervaltree
+import pandas as pd
 import simplejson as json
 
 import flares.util as util
 from flares.data.extract import load_hek_data, load_goes_flux, goes_files
-from flares.data.transform import extract_events, map_flares, active_region_time_ranges
+from flares.data.transform import extract_events, map_flares, active_region_time_ranges, sample_ranges
 
 DEFAULT_ARGS = {
     "start": dt.datetime(2012, 1, 1),
     "end": dt.datetime(2018, 1, 1),
     "input_hours": 12,
-    "output_hours": 24
+    "output_hours": 24,
+    "seed": 726527
 }
 
 logger = logging.getLogger(__name__)
@@ -33,6 +35,8 @@ logger = logging.getLogger(__name__)
 # TODO: Is it a problem that some images of a prediction period are used as inputs?
 # TODO: Should SRS be used instead of SSW?
 # TODO: How should data be subsampled (especially the GOES curve for non-flaring samples)
+# TODO: Is the Mt. Wilson Class relevant for sampling?
+# TODO: Make sure sampling makes actual sense
 
 
 def main():
@@ -51,7 +55,8 @@ def main():
         dt.timedelta(hours=args.output_hours),
         path_helper.raw_directory,
         path_helper.intermediate_directory,
-        date_suffix
+        date_suffix,
+        args.seed
     )
 
 
@@ -100,7 +105,8 @@ def transform_raw(
         output_duration: dt.timedelta,
         input_directory: str,
         output_directory: str,
-        date_suffix: str
+        date_suffix: str,
+        seed: int
 ):
     logger.info("Transforming raw data")
 
@@ -137,6 +143,28 @@ def transform_raw(
 
         _save_ranges(ranges_path, ranges)
         logger.info("Saved ranges")
+
+    ranges_test_path = os.path.join(output_directory, f"ranges_test_{date_suffix}.csv")
+    ranges_training_path = os.path.join(output_directory, f"ranges_training_{date_suffix}.csv")
+
+    if os.path.isfile(ranges_test_path) and os.path.isfile(ranges_training_path):
+        logger.info("Using existing test/training split at %s and %s", ranges_test_path, ranges_training_path)
+    else:
+        logger.info(
+            "Test/training split not found, will be sampled to %s and %s", ranges_test_path, ranges_training_path
+        )
+
+        all_ranges = pd.read_csv(
+            ranges_path,
+            delimiter=";",
+            index_col=0,
+            parse_dates=["start", "end"]
+        )
+
+        test_ranges, training_ranges = sample_ranges(all_ranges, seed)
+        test_ranges.to_csv(ranges_test_path, sep=";")
+        training_ranges.to_csv(ranges_training_path, sep=";")
+        logger.info("Sampled test/training split")
 
 
 def _save_ranges(output_path: str, ranges: Dict[int, intervaltree.IntervalTree]):
@@ -178,6 +206,9 @@ def parse_args():
     )
     parser.add_argument(
         "--output-hours", default=DEFAULT_ARGS["output_hours"], type=int, help="Number of hours for output"
+    )
+    parser.add_argument(
+        "--seed", default=DEFAULT_ARGS["seed"], type=int, help="Seed which is used for test/training sampling"
     )
     parser.add_argument(
         "--debug", action="store_true", help="Enabled debug logging"
