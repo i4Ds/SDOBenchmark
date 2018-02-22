@@ -37,7 +37,9 @@ logger = logging.getLogger(__name__)
 # TODO: How should data be subsampled (especially the GOES curve for non-flaring samples)
 # TODO: Is the Mt. Wilson Class relevant for sampling?
 # TODO: Make sure sampling makes actual sense
-# TODO: Currently, the peak flux might be
+# TODO: The peak flux for free regions is not added during the sampling process
+# TODO: The peak time for each sample should be recorded too to make sure the time from input to peak is evenly distributed
+# TODO: NOAA active regions might change numbers while still being the same AR, this has to be checked to avoid training/test overlaps
 
 
 def main():
