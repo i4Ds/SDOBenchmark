@@ -40,6 +40,8 @@ logger = logging.getLogger(__name__)
 # TODO: The peak flux for free regions is not added during the sampling process
 # TODO: The peak time for each sample should be recorded too to make sure the time from input to peak is evenly distributed
 # TODO: NOAA active regions might change numbers while still being the same AR, this has to be checked to avoid training/test overlaps
+# TODO: Should JPEG2000 or FITS images be used?
+# TODO: Don't subsequent input ranges in the test set skew the results due to being redundant in the prediction?
 
 
 def main():
