@@ -307,9 +307,9 @@ def sample_ranges(
             if np.random.rand() < 0.5:
                 target_indices = np.random.choice(len(current_active_regions), (1,))
         else:
-            # TODO: Three is just an arbitrary number
-            # Take three
-            target_indices = np.random.choice(len(current_active_regions), 3)
+            # Take a number of active regions
+            num_region_samples = 3
+            target_indices = np.random.choice(len(current_active_regions), num_region_samples)
 
         for idx, current_region in enumerate(current_active_regions):
             if idx in target_indices:
@@ -319,7 +319,7 @@ def sample_ranges(
 
     # Sample free regions
     free_active_regions = stratified_regions["free"]
-    test_free_region_indices = np.random.choice(len(free_active_regions), len(test_regions))
+    test_free_region_indices = np.random.choice(len(free_active_regions), len(test_regions) // 4)
     for idx, current_active_region in enumerate(free_active_regions):
         if idx in test_free_region_indices:
             test_regions.add(current_active_region)
