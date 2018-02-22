@@ -7,7 +7,6 @@ import requests
 
 import flares.util as util
 
-HEK_DATE_FORMAT = "%Y-%m-%dT%H:%M:%S"
 GOES_BASE_URL = "https://satdat.ngdc.noaa.gov/sem/goes/data/full"
 GOES_START_MARKER = os.linesep + "data:" + os.linesep
 
@@ -22,8 +21,8 @@ def load_hek_data(start_datetime: dt.datetime, end_datetime: dt.datetime) -> Ite
             "cmd": "search",
             "type": "column",
             "event_type": "fl,ar",  # Flares and active regions
-            "event_starttime": start_datetime.strftime(HEK_DATE_FORMAT),
-            "event_endtime": end_datetime.strftime(HEK_DATE_FORMAT),
+            "event_starttime": start_datetime.strftime(util.HEK_DATE_FORMAT),
+            "event_endtime": end_datetime.strftime(util.HEK_DATE_FORMAT),
             "event_coordsys": "helioprojective",
             "x1": "-1200",
             "x2": "1200",
@@ -40,7 +39,7 @@ def load_hek_data(start_datetime: dt.datetime, end_datetime: dt.datetime) -> Ite
 
         end_date = None
         for event in events:
-            end_date = dt.datetime.strptime(event["event_endtime"], HEK_DATE_FORMAT)
+            end_date = util.hek_date(event["event_endtime"])
 
             yield event
 

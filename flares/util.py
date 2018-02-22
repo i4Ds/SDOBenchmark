@@ -4,6 +4,9 @@ import os
 from typing import Iterable
 
 
+HEK_DATE_FORMAT = "%Y-%m-%dT%H:%M:%S"
+
+
 def configure_logging():
     logging.basicConfig(
         level=logging.INFO,
@@ -33,3 +36,7 @@ class PathHelper(object):
 def date_range(start_datetime: dt.datetime, end_datetime: dt.datetime) -> Iterable[dt.date]:
     for day_offset in range((end_datetime - start_datetime).days):
         yield (start_datetime + dt.timedelta(days=day_offset)).date()
+
+
+def hek_date(date_string: str) -> dt.datetime:
+    return dt.datetime.strptime(date_string, HEK_DATE_FORMAT)
