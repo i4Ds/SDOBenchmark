@@ -155,8 +155,6 @@ def active_region_time_ranges(
         unmapped_ranges.addi(unmapped_start, unmapped_end)
     unmapped_ranges.merge_overlaps()
 
-    # TODO: Check edge-case handling (interval end is often inclusive but tree treats it as exclusive)
-
     result = dict()
     for noaa_id, (region_start, region_end, region_events) in noaa_regions.items():
         flares = list(sorted(
@@ -166,7 +164,7 @@ def active_region_time_ranges(
 
         # Create initial free range
         free_ranges = intervaltree.IntervalTree()
-        free_ranges.addi(region_start, region_end, "free")
+        free_ranges.addi(region_start, region_end, ("free", None))
 
         # Process each flare
         flare_ranges = intervaltree.IntervalTree()
@@ -204,7 +202,7 @@ def active_region_time_ranges(
                 assert range_min < range_max
                 assert range_min - input_duration >= region_start
 
-                flare_ranges.addi(range_min, range_max, flare_class)
+                flare_ranges.addi(range_min, range_max, (flare_class, flare_peak))
 
             # Remove range around flare from free areas
             free_ranges.chop(flare_peak - output_duration, flare_peak + output_duration)
@@ -365,29 +363,37 @@ def _sample_ranges(
     samples = pd.DataFrame(columns=ranges.columns)
 
     for range_id, range_values in ranges.iterrows():
-        max_samples = 1 + (range_values["end"] - range_values["start"] - output_duration) // input_duration
-        current_samples = 1 if max_samples == 1 else np.random.randint(1, max_samples + 1)
+        max_samples = 1 + (range_values.end - range_values.start - output_duration) // input_duration
+        if range_values.type != "free" and range_values.type >= "M" and max_samples > 1:
+            # Use at least two samples for M+ flares (if possible)
+            min_samples = 2
+        else:
+            min_samples = 1
+        current_samples = np.random.randint(min_samples, max_samples + 1)
 
         current_min_offset = range_values["start"] - input_duration
         for sample_idx in range(current_samples):
             # TODO: I think this is statistically not correct
 
             # Calculate maximum offset
-            current_max_offset = range_values["end"] - output_duration - input_duration - (
-                        current_samples - sample_idx - 1) * input_duration
-            assert range_values["start"] - input_duration <= current_min_offset <= current_max_offset <= range_values[
-                "end"] - input_duration - output_duration
+            current_max_offset = range_values.end - output_duration - input_duration - \
+                                 (current_samples - sample_idx - 1) * input_duration
+            assert range_values.start - input_duration <= current_min_offset <= current_max_offset <= range_values.end - input_duration - output_duration
 
             # Use random offset in range
             current_offset_range = (current_max_offset - current_min_offset) // dt.timedelta(seconds=1) + 1
             assert current_offset_range > 0
             current_offset_seconds = np.random.randint(0, current_offset_range)
             current_offset = current_min_offset + dt.timedelta(seconds=current_offset_seconds)
-            assert range_values["start"] - input_duration <= current_offset <= current_max_offset
+            assert range_values.start - input_duration <= current_offset <= current_max_offset
 
             sample_id = f"{range_id}_{sample_idx}"
             samples.loc[sample_id] = (
-                range_values["noaa_num"], current_offset, current_offset + input_duration, range_values["type"]
+                range_values["noaa_num"],
+                current_offset,
+                current_offset + input_duration,
+                range_values.type,
+                range_values.peak
             )
 
             # Update min offset

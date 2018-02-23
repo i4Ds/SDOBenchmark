@@ -42,6 +42,7 @@ logger = logging.getLogger(__name__)
 # TODO: NOAA active regions might change numbers while still being the same AR, this has to be checked to avoid training/test overlaps
 # TODO: Should JPEG2000 or FITS images be used?
 # TODO: Don't subsequent input ranges in the test set skew the results due to being redundant in the prediction?
+# TODO: Check edge-case handling in transform module (interval end is often inclusive but tree treats it as exclusive)
 
 
 def main():
@@ -182,17 +183,20 @@ def _save_ranges(output_path: str, ranges: Dict[int, intervaltree.IntervalTree])
         writer = csv.writer(f, delimiter=";")
 
         # Header
-        writer.writerow(("id", "noaa_num", "start", "end", "type"))
+        writer.writerow(("id", "noaa_num", "start", "end", "type", "peak"))
 
         for noaa_num, region_ranges in ranges.items():
             for interval in region_ranges:
                 current_id = _range_id(noaa_num, interval)
+                current_class, current_peak = interval.data
+
                 writer.writerow((
                     current_id,
                     noaa_num,
                     interval.begin.strftime(util.HEK_DATE_FORMAT),
                     interval.end.strftime(util.HEK_DATE_FORMAT),
-                    interval.data
+                    current_class,
+                    current_peak.strftime(util.HEK_DATE_FORMAT) if current_peak is not None else None
                 ))
 
 
