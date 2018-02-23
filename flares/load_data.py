@@ -12,7 +12,7 @@ import simplejson as json
 
 import flares.util as util
 from flares.data.extract import load_hek_data, load_goes_flux, goes_files
-from flares.data.transform import extract_events, map_flares, active_region_time_ranges, sample_ranges
+from flares.data.transform import extract_events, map_flares, active_region_time_ranges, sample_ranges, verify_sampling
 
 DEFAULT_ARGS = {
     "start": dt.datetime(2012, 1, 1),
@@ -118,20 +118,20 @@ def transform_raw(
         os.makedirs(output_directory, exist_ok=False)
 
     events_raw_path = os.path.join(input_directory, f"events_{date_suffix}.json")
+    with open(events_raw_path, "r") as f:
+        raw_events = json.load(f)
+
+    swpc_flares, noaa_active_regions = extract_events(raw_events)
+    logger.debug(
+        "Extracted %d SWPC flares and %d (grouped) NOAA active regions", len(swpc_flares), len(noaa_active_regions)
+    )
+
     ranges_path = os.path.join(output_directory, f"ranges_{date_suffix}.csv")
 
     if os.path.isfile(ranges_path):
         logger.info("Using existing ranges at %s", ranges_path)
     else:
         logger.info("Ranges not found, will be computed to %s", ranges_path)
-
-        with open(events_raw_path, "r") as f:
-            raw_events = json.load(f)
-
-        swpc_flares, noaa_active_regions = extract_events(raw_events)
-        logger.debug(
-            "Extracted %d SWPC flares and %d (grouped) NOAA active regions", len(swpc_flares), len(noaa_active_regions)
-        )
 
         mapped_flares, unmapped_flares = map_flares(swpc_flares, noaa_active_regions, raw_events)
         logger.debug(
@@ -161,7 +161,7 @@ def transform_raw(
             ranges_path,
             delimiter=";",
             index_col=0,
-            parse_dates=["start", "end"]
+            parse_dates=["start", "end", "peak"]
         )
 
         test_samples, training_samples = sample_ranges(
@@ -173,6 +173,22 @@ def transform_raw(
         test_samples.to_csv(samples_test_path, sep=";")
         training_samples.to_csv(samples_training_path, sep=";")
         logger.info("Sampled test/training sets")
+
+    logger.info("Verifying sampling")
+    test_samples = pd.read_csv(
+        samples_test_path,
+        delimiter=";",
+        index_col=0,
+        parse_dates=["start", "end", "peak"]
+    )
+    training_samples = pd.read_csv(
+        samples_training_path,
+        delimiter=";",
+        index_col=0,
+        parse_dates=["start", "end", "peak"]
+    )
+    verify_sampling(test_samples, training_samples, input_duration, output_duration, noaa_active_regions)
+    logger.info("Sampling verified successfully")
 
 
 def _save_ranges(output_path: str, ranges: Dict[int, intervaltree.IntervalTree]):

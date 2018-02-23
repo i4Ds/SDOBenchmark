@@ -12,7 +12,7 @@ import flares.util as util
 logger = logging.getLogger(__name__)
 
 
-def extract_events(raw_events: List[dict]) -> Tuple[List[dict], Dict[int, List[dict]]]:
+def extract_events(raw_events: List[dict]) -> Tuple[List[dict], Dict[int, Tuple[dt.datetime, dt.datetime, List[dict]]]]:
     # Extract NOAA active region events and group them by their number
     noaa_regions = dict()
     for event in raw_events:
@@ -48,7 +48,9 @@ def extract_events(raw_events: List[dict]) -> Tuple[List[dict], Dict[int, List[d
 
 
 def map_flares(
-        swpc_flares: List[dict], noaa_regions: Dict[int, List[dict]], raw_events: List[dict]
+        swpc_flares: List[dict],
+        noaa_regions: Dict[int, Tuple[dt.datetime, dt.datetime, List[dict]]],
+        raw_events: List[dict]
 ) -> Tuple[List[Tuple[dict, int]], List[dict]]:
     # First, map all SWPC flares which contain a NOAA number
     mapped_flares = []
@@ -142,7 +144,7 @@ def map_flares(
 def active_region_time_ranges(
         input_duration: dt.timedelta,
         output_duration: dt.timedelta,
-        noaa_regions: Dict[int, List[dict]],
+        noaa_regions: Dict[int, Tuple[dt.datetime, dt.datetime, dt.datetime, List[dict]]],
         flare_mapping: List[Tuple[dict, int]],
         unmapped_flares: List[dict]
 ) -> Dict[int, intervaltree.IntervalTree]:
@@ -164,7 +166,7 @@ def active_region_time_ranges(
 
         # Create initial free range
         free_ranges = intervaltree.IntervalTree()
-        free_ranges.addi(region_start, region_end, ("free", None))
+        free_ranges.addi(region_start + input_duration, region_end, ("free", None))
 
         # Process each flare
         flare_ranges = intervaltree.IntervalTree()
@@ -400,3 +402,64 @@ def _sample_ranges(
             current_min_offset = current_offset + input_duration
 
     return samples
+
+
+def verify_sampling(
+        test_samples: pd.DataFrame,
+        training_samples: pd.DataFrame,
+        input_duration: dt.timedelta,
+        output_duration: dt.timedelta,
+        noaa_regions: Dict[int, Tuple[dt.datetime, dt.datetime, List[dict]]]
+):
+    # TODO: Check if active regions are actually not just the same with different numbers
+
+    # Check that active regions between test and training set are exclusive
+    logger.info("Verifying that active regions in the test and training set are mutually exclusive")
+    test_region_numbers = {row.noaa_num for _, row in test_samples.iterrows()}
+    training_region_numbers = {row.noaa_num for _, row in training_samples.iterrows()}
+    region_number_intersection = test_region_numbers & training_region_numbers
+    assert len(region_number_intersection) == 0, \
+        f"Same active regions found in both test and training set: {region_number_intersection}"
+
+    logger.info("Internally verifying test samples")
+    _verify_sampling_internal(test_samples, input_duration, output_duration, noaa_regions)
+
+    logger.info("Internally verifying training samples")
+    _verify_sampling_internal(training_samples, input_duration, output_duration, noaa_regions)
+
+
+def _verify_sampling_internal(
+        samples: pd.DataFrame,
+        input_duration: dt.timedelta,
+        output_duration: dt.timedelta,
+        noaa_regions: Dict[int, Tuple[dt.datetime, dt.datetime, List[dict]]]
+):
+    # TODO: Verify peak flare is actually present
+
+    # TODO: Assertions might be wrong for edge-case times
+    logger.warning("Assertions might be wrong for edge-case times")
+
+    logger.info("Verifying sample input duration")
+    for sample_id, sample_values in samples.iterrows():
+        assert sample_values.end - sample_values.start == input_duration, \
+            f"Sample {sample_id} ({sample_values.start} - {sample_values.end}) has invalid duration {input_duration}"
+
+    logger.info("Verifying that peak fluxes happen after the input period")
+    for sample_id, sample_values in samples.iterrows():
+        assert sample_values.type != "free" or pd.isna(sample_values.peak)
+        assert sample_values.type == "free" or sample_values.peak >= sample_values.end, \
+            f"Sample {sample_id} peak flux ({sample_values.peak}) must happen after the input end {sample_values.end}"
+
+    logger.info("Verifying that peak fluxes happen in the output period")
+    for sample_id, sample_values in samples.iterrows():
+        assert sample_values.type == "free" or sample_values.peak <= sample_values.end + output_duration, \
+            f"Sample {sample_id} peak flux ({sample_values.peak}) must happen in output period {sample_values.end + output_duration}"
+
+    logger.info("Verifying that inputs are fully contained in their active region")
+    for sample_id, sample_values in samples.iterrows():
+        region_start, region_end, _ = noaa_regions[sample_values.noaa_num]
+        assert region_start <= sample_values.start, \
+            f"Sample {sample_id} input start {sample_values.start} is before the corresponding region start {region_start}"
+
+        assert sample_values.end + output_duration <= region_end, \
+            f"Sample {sample_id} output end {sample_values.end + output_duration} ends after the corresponding region end {region_end}"
