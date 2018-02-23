@@ -40,8 +40,6 @@ logger = logging.getLogger(__name__)
 # TODO: What cadence for input should be chosen?
 
 # TODO: Handle merging and splitting active regions for test/training split
-# TODO: Make sure no active regions behind the sun are reported
-# TODO: NOAA active regions might change numbers while still being the same AR, this has to be checked to avoid training/test overlaps
 # TODO: Check if active regions overlap each other to avoid duplicates
 
 
