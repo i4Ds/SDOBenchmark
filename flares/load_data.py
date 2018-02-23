@@ -27,18 +27,15 @@ logger = logging.getLogger(__name__)
 
 # TODO: Some active regions might still produce flares which are not detected by SWPC
 # TODO: Make sure no instrument issues are present (e.g. satellite maneuvers)
-# TODO: Could also use SPoCA ARs to get way more data
 # TODO: Check if active regions overlap each other to avoid duplicates
 # TODO: Check if SSW data is actually reliable
 # TODO: SDO sensors collect less intensity over time, this has to be incorporated.
 # TODO: What cadence for input should be chosen?
-# TODO: Is it a problem that some images of a prediction period are used as inputs?
 # TODO: Should SRS be used instead of SSW?
 # TODO: How should data be subsampled (especially the GOES curve for non-flaring samples)
 # TODO: Is the Mt. Wilson Class relevant for sampling?
 # TODO: Make sure sampling makes actual sense
 # TODO: The peak flux for free regions is not added during the sampling process
-# TODO: The peak time for each sample should be recorded too to make sure the time from input to peak is evenly distributed
 # TODO: NOAA active regions might change numbers while still being the same AR, this has to be checked to avoid training/test overlaps
 # TODO: Should JPEG2000 or FITS images be used?
 # TODO: Don't subsequent input ranges in the test set skew the results due to being redundant in the prediction?
