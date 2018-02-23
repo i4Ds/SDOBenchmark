@@ -29,7 +29,7 @@ def extract_events(raw_events: List[dict]) -> Tuple[List[dict], Dict[int, Tuple[
         noaa_id: (
             min(map(lambda event: util.hek_date(event["event_starttime"]), events)),
             max(map(lambda event: util.hek_date(event["event_endtime"]), events)),
-            events
+            _clean_duplicate_noaa_events(events)
         )
         for noaa_id, events in noaa_regions.items()
     }
@@ -45,6 +45,18 @@ def extract_events(raw_events: List[dict]) -> Tuple[List[dict], Dict[int, Tuple[
     ))
 
     return swpc_flares, noaa_regions
+
+
+def _clean_duplicate_noaa_events(events: List[dict]) -> List[dict]:
+    # Multiple events for the same duration can be present, in that case, use the most recent one
+    date_grouping = collections.defaultdict(list)
+    for event in events:
+        date_grouping[event["event_starttime"]].append(event)
+
+    return [
+        group[0] if len(group) == 1 else max(group, key=lambda event: util.hek_date(event["frm_daterun"]))
+        for group in date_grouping.values()
+    ]
 
 
 def map_flares(
