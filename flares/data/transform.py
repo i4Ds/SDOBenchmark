@@ -144,7 +144,7 @@ def map_flares(
 def active_region_time_ranges(
         input_duration: dt.timedelta,
         output_duration: dt.timedelta,
-        noaa_regions: Dict[int, Tuple[dt.datetime, dt.datetime, dt.datetime, List[dict]]],
+        noaa_regions: Dict[int, Tuple[dt.datetime, dt.datetime, List[dict]]],
         flare_mapping: List[Tuple[dict, int]],
         unmapped_flares: List[dict]
 ) -> Dict[int, intervaltree.IntervalTree]:
