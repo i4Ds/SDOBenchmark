@@ -12,6 +12,7 @@ import simplejson as json
 
 import flares.util as util
 from flares.data.extract import load_hek_data, load_goes_flux, goes_files
+from flares.data.load import sample_path
 from flares.data.transform import extract_events, map_flares, active_region_time_ranges, sample_ranges, verify_sampling
 
 DEFAULT_ARGS = {
@@ -47,6 +48,8 @@ def main():
 
     path_helper = util.PathHelper(args.directory)
 
+    # TODO: Output file names will not work on Windows
+
     load_raw(path_helper.raw_directory, args.start, args.end)
 
     date_suffix = f"{args.start.strftime(util.HEK_DATE_FORMAT)}_{args.end.strftime(util.HEK_DATE_FORMAT)}"
@@ -57,6 +60,11 @@ def main():
         path_helper.intermediate_directory,
         date_suffix,
         args.seed
+    )
+
+    create_output(
+        path_helper,
+        date_suffix
     )
 
 
@@ -187,6 +195,68 @@ def transform_raw(
     )
     verify_sampling(test_samples, training_samples, input_duration, output_duration, noaa_active_regions)
     logger.info("Sampling verified successfully")
+
+
+def create_output(
+        path_helper: util.PathHelper,
+        date_suffix: str
+):
+    logger.info("Creating output")
+
+    # Create directories
+    test_directory = os.path.join(path_helper.output_directory, date_suffix, "test")
+    training_directory = os.path.join(path_helper.output_directory, date_suffix, "training")
+
+    # Load sample data
+    logger.debug("Loading sample data from csv")
+    samples_test_path = os.path.join(path_helper.intermediate_directory, f"samples_test_{date_suffix}.csv")
+    samples_training_path = os.path.join(path_helper.intermediate_directory, f"samples_training_{date_suffix}.csv")
+    test_samples = pd.read_csv(
+        samples_test_path,
+        delimiter=";",
+        index_col=0,
+        parse_dates=["start", "end", "peak"]
+    )
+    training_samples = pd.read_csv(
+        samples_training_path,
+        delimiter=";",
+        index_col=0,
+        parse_dates=["start", "end", "peak"]
+    )
+
+    logger.info("Creating test samples")
+    _create_output(test_samples, test_directory)
+
+    logger.info("Creating training samples")
+    _create_output(training_samples, training_directory)
+
+
+def _create_output(samples: pd.DataFrame, output_directory: str):
+    if not os.path.isdir(output_directory):
+        logger.debug("Creating output directory %s", output_directory)
+        os.makedirs(output_directory, exist_ok=False)
+
+    # Create a list of samples which are to be created
+    # TODO: Add peak flux in earlier pipeline step
+    target_samples = [
+        (sample_id, sample_values)
+        for sample_id, sample_values in samples.iterrows()
+        if not os.path.isdir(sample_path(sample_id, output_directory))
+    ]
+    logger.debug("%d samples will be created", len(target_samples))
+
+    # TODO: Create target samples, preferably multi threaded
+    pass
+    logger.warning("Sample creation is not implemented yet")
+
+    logger.info("Wrote samples")
+
+    # Create meta data file
+    # TODO: Remove unnecessary columns
+    meta_file = os.path.join(output_directory, "meta_data.csv")
+    samples.to_csv(meta_file, sep=";", index_label="id")
+
+    logger.info("Wrote meta data file")
 
 
 def _save_ranges(output_path: str, ranges: Dict[int, intervaltree.IntervalTree]):
