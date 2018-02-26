@@ -26,12 +26,10 @@ logger = logging.getLogger(__name__)
 
 # TODO: Make sure no instrument issues are present (e.g. satellite maneuvers)
 # TODO: SDO sensors collect less intensity over time, this has to be incorporated.
-# TODO: Output id column in output CSVs
 
 # TODO: Make sure sampling makes actual sense
 
 # TODO: Download and process FITS files
-# TODO: Mark subsequent input ranges as belonging to the same active region and flare
 # TODO: Use 1h input cadence
 # TODO: How large should input patches be?
 
@@ -169,8 +167,9 @@ def transform_raw(
             output_duration,
             seed
         )
-        test_samples.to_csv(samples_test_path, sep=";")
-        training_samples.to_csv(samples_training_path, sep=";")
+        # TODO: Document: id is range id + sample index, can be used to filter samples from same ranges
+        test_samples.to_csv(samples_test_path, sep=";", index_label="id")
+        training_samples.to_csv(samples_training_path, sep=";", index_label="id")
         logger.info("Sampled test/training sets")
 
     logger.info("Verifying sampling")
