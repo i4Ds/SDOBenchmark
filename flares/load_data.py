@@ -28,19 +28,17 @@ logger = logging.getLogger(__name__)
 # TODO: Make sure no instrument issues are present (e.g. satellite maneuvers)
 # TODO: SDO sensors collect less intensity over time, this has to be incorporated.
 
-# TODO: Some active regions might still produce flares which are not detected by SWPC
-# TODO: Check if SSW data is actually reliable
-
-# TODO: Is the Mt. Wilson Class relevant for sampling?
 # TODO: Make sure sampling makes actual sense
 
-# TODO: Should JPEG2000 or FITS images be used?
-# TODO: Don't subsequent input ranges in the test set skew the results due to being redundant in the prediction?
-# TODO: How should data be subsampled (especially the GOES curve for non-flaring samples)
-# TODO: What cadence for input should be chosen?
+# TODO: Download and process FITS files
+# TODO: Mark subsequent input ranges as belonging to the same active region and flare
+# TODO: Use 1h input cadence
+# TODO: How large should input patches be?
 
 # TODO: Handle merging and splitting active regions for test/training split
 # TODO: Check if active regions overlap each other to avoid duplicates
+# TODO: Some active regions might still produce flares which are not detected by SWPC
+# TODO: Check if SSW data is actually reliable
 
 
 def main():
