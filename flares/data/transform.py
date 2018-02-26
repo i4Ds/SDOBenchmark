@@ -249,9 +249,44 @@ def active_region_time_ranges(
             region_ranges.discardi(*current_interval)
             assert current_interval not in region_ranges
 
-        result[noaa_id] = region_ranges
+        # Add peak flux to each range
+        updated_ranges = intervaltree.IntervalTree()
+        for current_interval in region_ranges:
+            current_class, current_peak_time = current_interval.data
+
+            if current_class == "free":
+                # TODO: What to use here? GOES curve does not seem to reliable...
+                current_peak_flux = np.float128("1e-8")
+                logger.warning("Approximating peak flux for non-flaring region as %s", current_peak_flux)
+            else:
+                current_peak_flux = _class_to_flux(current_class)
+
+            # TODO: This if is currently useless
+            if current_peak_flux is not None:
+                updated_ranges.addi(
+                    current_interval.begin,
+                    current_interval.end,
+                    (current_class, current_peak_time, current_peak_flux)
+                )
+
+        if len(region_ranges) != len(updated_ranges):
+            logger.debug("Removed %d free intervals which had bad GOES data", len(region_ranges) - len(updated_ranges))
+
+        result[noaa_id] = updated_ranges
 
     return result
+
+
+def _class_to_flux(goes_class: str) -> np.float128:
+    scale = {
+        "A": np.float128(1e-8),
+        "B": np.float128(1e-7),
+        "C": np.float128(1e-6),
+        "M": np.float128(1e-5),
+        "X": np.float128(1e-4)
+    }[goes_class[0]]
+
+    return scale * np.float128(goes_class[1:])
 
 
 def _assert_active_region_time_ranges(
@@ -412,7 +447,8 @@ def _sample_ranges(
                 current_offset,
                 current_offset + input_duration,
                 range_values.type,
-                range_values.peak
+                range_values.peak,
+                range_values.peak_flux
             )
 
             # Update min offset

@@ -38,6 +38,7 @@ logger = logging.getLogger(__name__)
 # TODO: Check if active regions overlap each other to avoid duplicates
 # TODO: Some active regions might still produce flares which are not detected by SWPC
 # TODO: Check if SSW data is actually reliable
+# TODO: How should the peak flux for non-flaring active regions be calculated?
 
 
 def main():
@@ -122,6 +123,7 @@ def transform_raw(
         logger.info("Creating output directory %s", output_directory)
         os.makedirs(output_directory, exist_ok=False)
 
+    logger.debug("Loading saved events")
     events_raw_path = os.path.join(input_directory, f"events_{date_suffix}.json")
     with open(events_raw_path, "r") as f:
         raw_events = json.load(f)
@@ -143,6 +145,13 @@ def transform_raw(
             "Created flare mapping, resulting in %d mapped and %d unmapped flares",
             len(mapped_flares), len(unmapped_flares)
         )
+
+        # logger.debug("Loading saved GOES flux")
+        # goes_directory = os.path.join(input_directory, "goes")
+        # goes_flux = pd.concat([
+        #     _parse_goes_flux(os.path.join(goes_directory, current_file))
+        #     for current_file in os.listdir(goes_directory)
+        # ])
 
         ranges = active_region_time_ranges(
             input_duration, output_duration, noaa_active_regions, mapped_flares, unmapped_flares
@@ -259,17 +268,27 @@ def _create_output(samples: pd.DataFrame, output_directory: str):
     logger.info("Wrote meta data file")
 
 
+def _parse_goes_flux(file_path: str) -> pd.DataFrame:
+    with open(file_path, "r") as f:
+        # Skip lines until data: label is read
+        for line in f:
+            if line.startswith("data:"):
+                break
+
+        return pd.read_csv(f, sep=",", parse_dates=["time_tag"], index_col="time_tag")
+
+
 def _save_ranges(output_path: str, ranges: Dict[int, intervaltree.IntervalTree]):
     with open(output_path, "w", newline="") as f:
         writer = csv.writer(f, delimiter=";")
 
         # Header
-        writer.writerow(("id", "noaa_num", "start", "end", "type", "peak"))
+        writer.writerow(("id", "noaa_num", "start", "end", "type", "peak", "peak_flux"))
 
         for noaa_num, region_ranges in ranges.items():
             for interval in region_ranges:
                 current_id = _range_id(noaa_num, interval)
-                current_class, current_peak = interval.data
+                current_class, current_peak, current_peak_flux = interval.data
 
                 writer.writerow((
                     current_id,
@@ -277,7 +296,8 @@ def _save_ranges(output_path: str, ranges: Dict[int, intervaltree.IntervalTree])
                     interval.begin.strftime(util.HEK_DATE_FORMAT),
                     interval.end.strftime(util.HEK_DATE_FORMAT),
                     current_class,
-                    current_peak.strftime(util.HEK_DATE_FORMAT) if current_peak is not None else None
+                    current_peak.strftime(util.HEK_DATE_FORMAT) if current_peak is not None else None,
+                    current_peak_flux
                 ))
 
 
