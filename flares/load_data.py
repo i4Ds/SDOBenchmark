@@ -19,6 +19,7 @@ DEFAULT_ARGS = {
     "end": dt.datetime(2018, 1, 1),
     "input_hours": 12,
     "output_hours": 24,
+    "cadence_hours": 1,
     "seed": 726527
 }
 
@@ -30,7 +31,6 @@ logger = logging.getLogger(__name__)
 # TODO: Make sure sampling makes actual sense
 
 # TODO: Download and process FITS files
-# TODO: Use 1h input cadence
 # TODO: How large should input patches be?
 
 # TODO: Handle merging and splitting active regions for test/training split
@@ -231,6 +231,9 @@ def parse_args():
     )
     parser.add_argument(
         "--output-hours", default=DEFAULT_ARGS["output_hours"], type=int, help="Number of hours for output"
+    )
+    parser.add_argument(
+        "--cadence-hours", default=DEFAULT_ARGS["cadence_hours"], type=int, help="Input cadence in hours"
     )
     parser.add_argument(
         "--seed", default=DEFAULT_ARGS["seed"], type=int, help="Seed which is used for test/training sampling"
