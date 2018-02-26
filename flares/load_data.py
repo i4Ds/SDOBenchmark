@@ -24,9 +24,9 @@ DEFAULT_ARGS = {
 
 logger = logging.getLogger(__name__)
 
-# TODO: Check edge-case handling in transform module (interval end is often inclusive but tree treats it as exclusive)
 # TODO: Make sure no instrument issues are present (e.g. satellite maneuvers)
 # TODO: SDO sensors collect less intensity over time, this has to be incorporated.
+# TODO: Output id column in output CSVs
 
 # TODO: Make sure sampling makes actual sense
 

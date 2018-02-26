@@ -176,9 +176,9 @@ def active_region_time_ranges(
             key=lambda flare_event: util.hek_date(flare_event["event_peaktime"])
         ))
 
-        # Create initial free range
+        # Create initial free range (add 1 second to end because region_end is inclusive but intervaltree is exclusive)
         free_ranges = intervaltree.IntervalTree()
-        free_ranges.addi(region_start + input_duration, region_end, ("free", None))
+        free_ranges.addi(region_start + input_duration, region_end + dt.timedelta(seconds=1), ("free", None))
 
         # Process each flare
         flare_ranges = intervaltree.IntervalTree()
@@ -187,15 +187,17 @@ def active_region_time_ranges(
             flare_class = flare_event["fl_goescls"]
 
             # Calculate best case range
-            range_min = max(flare_peak - output_duration, region_start + input_duration)
-            range_max = min(flare_peak + output_duration, region_end)
+            # 1 second deltas are used to make sure values are correctly inclusive/exclusive in ranges
+            range_min = max(flare_peak - output_duration + dt.timedelta(seconds=1), region_start + input_duration)
+            range_max = min(flare_peak + output_duration, region_end + dt.timedelta(seconds=1))
 
             # Check if any bigger flares happen before
             prev_idx = idx - 1
-            while prev_idx >= 0 and util.hek_date(flares[prev_idx]["event_peaktime"]) > range_min:
+            while prev_idx >= 0 and util.hek_date(flares[prev_idx]["event_peaktime"]) >= range_min:
                 # Check if check flare is bigger than current, if yes, reduce start range
                 if flares[prev_idx]["fl_goescls"] > flare_class:
-                    range_min = util.hek_date(flares[prev_idx]["event_peaktime"])
+                    # First datetime is the one just after the flare
+                    range_min = util.hek_date(flares[prev_idx]["event_peaktime"]) + dt.timedelta(seconds=1)
                     break
                 else:
                     prev_idx -= 1
@@ -205,21 +207,22 @@ def active_region_time_ranges(
             while next_idx < len(flares) and util.hek_date(flares[next_idx]["event_peaktime"]) < range_max:
                 # Check if check flare is bigger than current, if yes, reduce start range
                 if flares[next_idx]["fl_goescls"] > flare_class:
+                    # Last datetime (exclusive) is the larger flare
                     range_max = util.hek_date(flares[next_idx]["event_peaktime"])
                     break
                 else:
                     next_idx += 1
 
             if range_max - range_min >= output_duration:
-                assert range_min <= flare_peak <= range_max
-                assert region_start <= flare_peak <= region_end
+                assert range_min <= flare_peak < range_max
+                assert region_start <= flare_peak < region_end
                 assert range_min < range_max
                 assert range_min - input_duration >= region_start
 
                 flare_ranges.addi(range_min, range_max, (flare_class, flare_peak))
 
             # Remove range around flare from free areas
-            free_ranges.chop(flare_peak - output_duration, flare_peak + output_duration)
+            free_ranges.chop(flare_peak - output_duration + dt.timedelta(seconds=1), flare_peak + output_duration)
 
         # Merge free and flare ranges
         region_ranges = free_ranges | flare_ranges
@@ -389,17 +392,19 @@ def _sample_ranges(
         for sample_idx in range(current_samples):
             # TODO: I think this is statistically not correct
 
-            # Calculate maximum offset
-            current_max_offset = range_values.end - output_duration - input_duration - \
-                                 (current_samples - sample_idx - 1) * input_duration
-            assert range_values.start - input_duration <= current_min_offset <= current_max_offset <= range_values.end - input_duration - output_duration
+            # Calculate maximum offset (inclusive!)
+            current_max_offset = range_values.end - output_duration - input_duration \
+                                 - (current_samples - sample_idx - 1) * input_duration
+            assert range_values.start - input_duration <= current_min_offset <= current_max_offset
+            assert current_max_offset <= range_values.end - input_duration - output_duration
 
             # Use random offset in range
-            current_offset_range = (current_max_offset - current_min_offset) // dt.timedelta(seconds=1) + 1
+            current_end_offset = current_max_offset + dt.timedelta(seconds=1)
+            current_offset_range = (current_end_offset - current_min_offset) // dt.timedelta(seconds=1)
             assert current_offset_range > 0
             current_offset_seconds = np.random.randint(0, current_offset_range)
             current_offset = current_min_offset + dt.timedelta(seconds=current_offset_seconds)
-            assert range_values.start - input_duration <= current_offset <= current_max_offset
+            assert range_values.start - input_duration <= current_offset <= current_max_offset < current_end_offset
 
             sample_id = f"{range_id}_{sample_idx}"
             samples.loc[sample_id] = (
@@ -448,9 +453,6 @@ def _verify_sampling_internal(
 ):
     # TODO: Verify peak flare is actually present
 
-    # TODO: Assertions might be wrong for edge-case times
-    logger.warning("Assertions might be wrong for edge-case times")
-
     logger.info("Verifying sample input duration")
     for sample_id, sample_values in samples.iterrows():
         assert sample_values.end - sample_values.start == input_duration, \
@@ -460,11 +462,11 @@ def _verify_sampling_internal(
     for sample_id, sample_values in samples.iterrows():
         assert sample_values.type != "free" or pd.isna(sample_values.peak)
         assert sample_values.type == "free" or sample_values.peak >= sample_values.end, \
-            f"Sample {sample_id} peak flux ({sample_values.peak}) must happen after the input end {sample_values.end}"
+            f"Sample {sample_id} peak flux ({sample_values.peak}) must happen after the input {sample_values.end}"
 
     logger.info("Verifying that peak fluxes happen in the output period")
     for sample_id, sample_values in samples.iterrows():
-        assert sample_values.type == "free" or sample_values.peak <= sample_values.end + output_duration, \
+        assert sample_values.type == "free" or sample_values.peak < sample_values.end + output_duration, \
             f"Sample {sample_id} peak flux ({sample_values.peak}) must happen in output period {sample_values.end + output_duration}"
 
     logger.info("Verifying that inputs are fully contained in their active region")
@@ -473,5 +475,5 @@ def _verify_sampling_internal(
         assert region_start <= sample_values.start, \
             f"Sample {sample_id} input start {sample_values.start} is before the corresponding region start {region_start}"
 
-        assert sample_values.end + output_duration <= region_end, \
-            f"Sample {sample_id} output end {sample_values.end + output_duration} ends after the corresponding region end {region_end}"
+        assert sample_values.end + output_duration <= region_end + dt.timedelta(seconds=1), \
+            f"Sample {sample_id} output end {sample_values.end + output_duration} ends after the corresponding region end {region_end + dt.timedelta(seconds=1)}"
