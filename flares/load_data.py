@@ -2,12 +2,12 @@ import argparse
 import csv
 import datetime as dt
 import logging
+import multiprocessing
 import os
 from typing import Dict
 
 import dateutil.parser
 import intervaltree
-import multiprocessing
 import pandas as pd
 import simplejson as json
 
@@ -34,6 +34,7 @@ logger = logging.getLogger(__name__)
 # TODO: Some active regions might still produce flares which are not detected by SWPC
 # TODO: Check if SSW data is actually reliable
 # TODO: How should the peak flux for non-flaring active regions be calculated?
+# TODO: What HMI data should be used?
 
 # TODO: Download and process FITS files
 # TODO: How large should input patches be?
@@ -63,6 +64,8 @@ def main():
 
     create_output(
         path_helper,
+        args.email,
+        args.cadence_hours,
         date_suffix
     )
 
@@ -211,6 +214,8 @@ def transform_raw(
 
 def create_output(
         path_helper: util.PathHelper,
+        email_address: str,
+        cadence_hours: int,
         date_suffix: str
 ):
     logger.info("Creating output")
@@ -237,19 +242,19 @@ def create_output(
     )
 
     logger.info("Creating test samples")
-    _create_output(test_samples, test_directory)
+    _create_output(test_samples, test_directory, email_address, cadence_hours)
 
     logger.info("Creating training samples")
-    _create_output(training_samples, training_directory)
+    _create_output(training_samples, training_directory, email_address, cadence_hours)
 
 
-def _create_output(samples: pd.DataFrame, output_directory: str):
+def _create_output(samples: pd.DataFrame, output_directory: str, email_address: str, cadence_hours: int):
     if not os.path.isdir(output_directory):
         logger.debug("Creating output directory %s", output_directory)
         os.makedirs(output_directory, exist_ok=False)
 
     logger.warning("Sample creation is not implemented yet")
-    _create_image_output(samples, output_directory)
+    _create_image_output(samples, output_directory, email_address, cadence_hours)
 
     logger.info("Wrote samples")
 
@@ -261,7 +266,7 @@ def _create_output(samples: pd.DataFrame, output_directory: str):
     logger.info("Wrote meta data file")
 
 
-def _create_image_output(samples: pd.DataFrame, output_directory: str):
+def _create_image_output(samples: pd.DataFrame, output_directory: str, email_address: str, cadence_hours: int):
     # Create a list of samples which are to be created
     target_samples = [
         (sample_id, sample_values)
@@ -279,10 +284,9 @@ def _create_image_output(samples: pd.DataFrame, output_directory: str):
         # Queues for synchronisation
         download_queue = manager.Queue(maxsize=8)
         processing_queue = manager.Queue(maxsize=8)
-        print(type(download_queue))
 
         # Create workers
-        request_sender = RequestSender(download_queue)
+        request_sender = RequestSender(download_queue, email_address, cadence_hours)
         image_loader = ImageLoader(download_queue, processing_queue)
         output_processor = OutputProcessor(processing_queue)
 
@@ -356,6 +360,9 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "directory", help="Output directory"
+    )
+    parser.add_argument(
+        "email", help="Registered JSOC email address for image download"
     )
     parser.add_argument(
         "--start", default=DEFAULT_ARGS["start"], type=dateutil.parser.parse, help="First date and time (inclusive)"
