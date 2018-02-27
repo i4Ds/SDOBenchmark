@@ -49,11 +49,9 @@ def main():
 
     path_helper = util.PathHelper(args.directory)
 
-    # TODO: Output file names will not work on Windows
-
     load_raw(path_helper.raw_directory, args.start, args.end)
 
-    date_suffix = f"{args.start.strftime(util.HEK_DATE_FORMAT)}_{args.end.strftime(util.HEK_DATE_FORMAT)}"
+    date_suffix = _date_suffix(args.start, args.end)
     transform_raw(
         dt.timedelta(hours=args.input_hours),
         dt.timedelta(hours=args.output_hours),
@@ -76,7 +74,7 @@ def load_raw(output_directory: str, start: dt.datetime, end: dt.datetime):
         logger.info("Creating output directory %s", output_directory)
         os.makedirs(output_directory, exist_ok=False)
 
-    date_suffix = f"{start.strftime(util.HEK_DATE_FORMAT)}_{end.strftime(util.HEK_DATE_FORMAT)}"
+    date_suffix = _date_suffix(start, end)
 
     # GOES flux
     goes_raw_path = os.path.join(output_directory, f"goes")
@@ -107,6 +105,11 @@ def load_raw(output_directory: str, start: dt.datetime, end: dt.datetime):
             json.dump(load_hek_data(start, end), f, iterable_as_array=True)
 
         logger.info("Loaded event list")
+
+
+def _date_suffix(start: dt.datetime, end: dt.datetime) -> str:
+    # Use a date format which does not produce characters illegal in mainstream operating systems
+    return f"{start:%Y-%m-%dT%H%M%S}_{end:%Y-%m-%dT%H%M%S}"
 
 
 def transform_raw(
