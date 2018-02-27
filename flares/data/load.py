@@ -2,6 +2,9 @@ import datetime as dt
 import logging
 import multiprocessing
 import os
+import re
+import shutil
+import urllib.request
 from typing import Tuple, List
 
 import drms
@@ -34,7 +37,7 @@ class RequestSender(object):
         try:
             # Perform request and provide URLs as result
             request_urls = self._perform_request(sample_id, sample_values.start, sample_values.end)
-            self._output_queue.put(request_urls)
+            self._output_queue.put((sample_id, request_urls))
         except Exception as e:
             logger.error("Requesting data for sample %s failed (is skipped): %s", sample_id, e)
 
@@ -66,33 +69,57 @@ class RequestSender(object):
 
 
 class ImageLoader(object):
-    def __init__(self, input_queue: multiprocessing.Queue, output_queue: multiprocessing.Queue):
+    RECORD_PARSE_REGEX = re.compile(r"^.+\[(.+)\]\[(.+)\].+$")
+    RECORD_DATE_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
+
+    def __init__(self, input_queue: multiprocessing.Queue, output_queue: multiprocessing.Queue, output_directory: str):
         self._input_queue = input_queue
         self._output_queue = output_queue
+        self._output_directory = output_directory
 
     def __call__(self, *args, **kwargs):
         logging.debug("Image loader started")
         while True:
-            records = self._input_queue.get()
+            current_input = self._input_queue.get()
 
             # Check if done
-            if records is None:
+            if current_input is None:
                 break
 
-            # Download image
-            self._download_images(records)
+            sample_id, records = current_input
 
-            # Enqueue next work item
-            # TODO: Use actual data
-            self._output_queue.put(1)
+            sample_directory = os.path.join(self._output_directory, sample_id)
+            try:
+                # Download image
+                self._download_images(sample_directory, records)
 
-    @classmethod
-    def _download_images(cls, records: List[Tuple[str, str]]):
-        # TODO: Perform actual work
-        from time import sleep
-        import random
-        sleep(random.uniform(8, 20))
-        logger.info("Downloaded images (%d)", len(records))
+                # Enqueue next work item
+                self._output_queue.put(sample_id)
+
+            except Exception as e:
+                logger.error("Error while downloading data for sample %s (is skipped): %s", sample_id, e)
+
+                # Delete sample directory because it contains inconsistent data
+                shutil.rmtree(sample_directory, ignore_errors=True)
+
+    def _download_images(self, sample_directory: str, records: List[Tuple[str, str]]):
+        fits_directory = os.path.join(sample_directory, "_fits_temp")
+        os.makedirs(fits_directory)
+
+        for record, url in records:
+            # TODO: This does not work with HMI
+            record_match = self.RECORD_PARSE_REGEX.match(record)
+
+            if record_match is None:
+                raise Exception(f"Invalid record format '{record}'")
+
+            record_date_raw, record_wavelength = record_match.groups()
+            record_date = dt.datetime.strptime(record_date_raw, self.RECORD_DATE_FORMAT)
+
+            output_file_name = f"{record_date:%Y-%m-%dT%H%M%S}_{record_wavelength}.fits"
+            urllib.request.urlretrieve(url, os.path.join(fits_directory, output_file_name))
+
+        logger.debug("Downloaded %d files to %s", len(records), fits_directory)
 
 
 class OutputProcessor(object):
@@ -102,13 +129,14 @@ class OutputProcessor(object):
     def __call__(self, *args, **kwargs):
         logging.debug("Output processor started")
         while True:
-            current_input = self._input_queue.get()
+            sample_id = self._input_queue.get()
 
             # Check if done
-            if current_input is None:
+            if sample_id is None:
                 break
 
             # Process output
+            logger.debug("Processing sample %s", sample_id)
             self._process_output()
 
     @classmethod

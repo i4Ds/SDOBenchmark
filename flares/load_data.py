@@ -287,7 +287,7 @@ def _create_image_output(samples: pd.DataFrame, output_directory: str, email_add
 
         # Create workers
         request_sender = RequestSender(download_queue, email_address, cadence_hours)
-        image_loader = ImageLoader(download_queue, processing_queue)
+        image_loader = ImageLoader(download_queue, processing_queue, output_directory)
         output_processor = OutputProcessor(processing_queue)
 
         # Start workers
