@@ -248,25 +248,32 @@ def create_output(
     _create_output(training_samples, training_directory, email_address, cadence_hours)
 
 
-def _create_output(samples: pd.DataFrame, output_directory: str, email_address: str, cadence_hours: int):
+def _create_output(
+        samples: pd.DataFrame,
+        output_directory: str,
+        email_address: str,
+        cadence_hours: int
+):
     if not os.path.isdir(output_directory):
         logger.debug("Creating output directory %s", output_directory)
         os.makedirs(output_directory, exist_ok=False)
-
-    logger.warning("Sample creation is not implemented yet")
-    _create_image_output(samples, output_directory, email_address, cadence_hours)
-
-    logger.info("Wrote samples")
 
     # Create meta data file
     # TODO: Remove unnecessary columns
     meta_file = os.path.join(output_directory, "meta_data.csv")
     samples.to_csv(meta_file, sep=";", index_label="id")
-
     logger.info("Wrote meta data file")
 
+    _create_image_output(samples, output_directory, email_address, cadence_hours)
+    logger.info("Wrote samples")
 
-def _create_image_output(samples: pd.DataFrame, output_directory: str, email_address: str, cadence_hours: int):
+
+def _create_image_output(
+        samples: pd.DataFrame,
+        output_directory: str,
+        email_address: str,
+        cadence_hours: int
+):
     # Create a list of samples which are to be created
     target_samples = [
         (sample_id, sample_values)
@@ -288,7 +295,7 @@ def _create_image_output(samples: pd.DataFrame, output_directory: str, email_add
         # Create workers
         request_sender = RequestSender(download_queue, email_address, cadence_hours)
         image_loader = ImageLoader(download_queue, processing_queue, output_directory)
-        output_processor = OutputProcessor(processing_queue, output_directory)
+        output_processor = OutputProcessor(processing_queue, output_directory, samples, cadence_hours)
 
         # Start workers
         logger.debug("Starting output processor workers")

@@ -124,9 +124,30 @@ class ImageLoader(object):
 
 
 class OutputProcessor(object):
-    def __init__(self, input_queue: multiprocessing.Queue, output_directory: str):
+    IMAGE_TYPES = (
+        "94",
+        "131",
+        "171",
+        "193",
+        "211",
+        "304",
+        "335",
+        "1600",
+        "1700",
+        "4500"
+    )
+
+    def __init__(
+            self,
+            input_queue: multiprocessing.Queue,
+            output_directory: str,
+            meta_data: pd.DataFrame,
+            cadence_hours: int
+    ):
         self._input_queue = input_queue
         self._output_directory = output_directory
+        self._meta_data = meta_data
+        self._cadence_hours = cadence_hours
 
     def __call__(self, *args, **kwargs):
         logging.debug("Output processor started")
@@ -154,6 +175,23 @@ class OutputProcessor(object):
                 # Delete fits directory in any case to avoid space issues
                 shutil.rmtree(fits_directory, ignore_errors=True)
 
-    @classmethod
-    def _process_output(cls, sample_id: str, input_directory: str, output_directory: str):
+    def _process_output(self, sample_id: str, input_directory: str, output_directory: str):
+
+        # 1. Create a time line by time steps, each (available) wavelength
+        # 2. For each time step
+        # 3.    For each wavelength
+        # 4.        Check if image is usable (in FITS header)
+        # 5.        Convert to level 1.5 data (for AIA)
+        # 6.        Rotate active region position to image time
+        # 7.        Cut out part of image
+        # 8.    Save all cuts into numpy array
+
+        # Create a list of available times per wavelength
+        # TODO: This ignores HMI
+        available_times = {wavelength: [] for wavelength in self.IMAGE_TYPES}
+        for current_file in os.listdir(input_directory):
+            current_datetime_raw, current_wavelength = os.path.splitext(current_file)[0].split("_")
+            current_datetime = dt.datetime.strptime(current_datetime_raw, "%Y-%m-%dT%H%M%S")
+            available_times[current_wavelength].append((current_datetime, current_file))
+
         logger.debug("Created sample %s output", sample_id)
