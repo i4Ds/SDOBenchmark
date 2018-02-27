@@ -7,12 +7,13 @@ from typing import Dict
 
 import dateutil.parser
 import intervaltree
+import multiprocessing
 import pandas as pd
 import simplejson as json
 
 import flares.util as util
 from flares.data.extract import load_hek_data, load_goes_flux, goes_files
-from flares.data.load import sample_path
+from flares.data.load import sample_path, RequestSender, ImageLoader, OutputProcessor
 from flares.data.transform import extract_events, map_flares, active_region_time_ranges, sample_ranges, verify_sampling
 
 DEFAULT_ARGS = {
@@ -247,18 +248,8 @@ def _create_output(samples: pd.DataFrame, output_directory: str):
         logger.debug("Creating output directory %s", output_directory)
         os.makedirs(output_directory, exist_ok=False)
 
-    # Create a list of samples which are to be created
-    # TODO: Add peak flux in earlier pipeline step
-    target_samples = [
-        (sample_id, sample_values)
-        for sample_id, sample_values in samples.iterrows()
-        if not os.path.isdir(sample_path(sample_id, output_directory))
-    ]
-    logger.debug("%d samples will be created", len(target_samples))
-
-    # TODO: Create target samples, preferably multi threaded
-    pass
     logger.warning("Sample creation is not implemented yet")
+    _create_image_output(samples, output_directory)
 
     logger.info("Wrote samples")
 
@@ -268,6 +259,60 @@ def _create_output(samples: pd.DataFrame, output_directory: str):
     samples.to_csv(meta_file, sep=";", index_label="id")
 
     logger.info("Wrote meta data file")
+
+
+def _create_image_output(samples: pd.DataFrame, output_directory: str):
+    # Create a list of samples which are to be created
+    target_samples = [
+        (sample_id, sample_values)
+        for sample_id, sample_values in samples.iterrows()
+        if not os.path.isdir(sample_path(sample_id, output_directory))
+    ]
+    logger.debug("%d samples will be created", len(target_samples))
+
+    # Create pools for different download steps
+    # TODO: processes, has to be fixed to avoid too many requests
+    with multiprocessing.Pool(processes=8) as request_pool, \
+            multiprocessing.Pool(processes=8) as download_pool, \
+            multiprocessing.Pool(processes=8) as process_pool, \
+            multiprocessing.Manager() as manager:
+        # Queues for synchronisation
+        download_queue = manager.Queue(maxsize=8)
+        processing_queue = manager.Queue(maxsize=8)
+        print(type(download_queue))
+
+        # Create workers
+        request_sender = RequestSender(download_queue)
+        image_loader = ImageLoader(download_queue, processing_queue)
+        output_processor = OutputProcessor(processing_queue)
+
+        # Start workers
+        logger.debug("Starting output processor workers")
+        output_processor_results = [process_pool.apply_async(output_processor) for _ in range(8)]
+        logger.debug("Starting image loader workers")
+        image_loader_results = [download_pool.apply_async(image_loader) for _ in range(8)]
+
+        # Map inputs to finally start full process
+        logger.debug("Starting requests")
+        # TODO: Map full list
+        request_pool.map(request_sender, target_samples[:10])
+        logger.debug("Finished requests")
+
+        # Wait for image loader workers to finish
+        logger.debug("Waiting for image loader workers to finish")
+        for _ in range(8):
+            download_queue.put(None)
+        for current_worker_result in image_loader_results:
+            current_worker_result.get()
+
+        # Wait for output processor workers to finish
+        logger.debug("Waiting for output processor workers to finish")
+        for _ in range(8):
+            processing_queue.put(None)
+        for current_worker_result in output_processor_results:
+            current_worker_result.get()
+
+        logger.debug("All workers finished")
 
 
 def _parse_goes_flux(file_path: str) -> pd.DataFrame:
