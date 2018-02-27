@@ -26,19 +26,18 @@ DEFAULT_ARGS = {
 
 logger = logging.getLogger(__name__)
 
-# TODO: Make sure no instrument issues are present (e.g. satellite maneuvers)
-# TODO: SDO sensors collect less intensity over time, this has to be incorporated.
-
 # TODO: Make sure sampling makes actual sense
-
-# TODO: Download and process FITS files
-# TODO: How large should input patches be?
 
 # TODO: Handle merging and splitting active regions for test/training split
 # TODO: Check if active regions overlap each other to avoid duplicates
 # TODO: Some active regions might still produce flares which are not detected by SWPC
 # TODO: Check if SSW data is actually reliable
 # TODO: How should the peak flux for non-flaring active regions be calculated?
+
+# TODO: Download and process FITS files
+# TODO: How large should input patches be?
+# TODO: Make sure no instrument issues are present (e.g. satellite maneuvers, read in FITS header)
+# TODO: SDO sensors collect less intensity over time, should this be incorporated?
 
 
 def main():
