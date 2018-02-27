@@ -87,6 +87,7 @@ class ImageLoader(object):
                 break
 
             sample_id, records = current_input
+            logger.debug("Downloading images of sample %s", sample_id)
 
             sample_directory = os.path.join(self._output_directory, sample_id)
             try:
@@ -123,8 +124,9 @@ class ImageLoader(object):
 
 
 class OutputProcessor(object):
-    def __init__(self, input_queue: multiprocessing.Queue):
+    def __init__(self, input_queue: multiprocessing.Queue, output_directory: str):
         self._input_queue = input_queue
+        self._output_directory = output_directory
 
     def __call__(self, *args, **kwargs):
         logging.debug("Output processor started")
@@ -135,14 +137,23 @@ class OutputProcessor(object):
             if sample_id is None:
                 break
 
-            # Process output
             logger.debug("Processing sample %s", sample_id)
-            self._process_output()
+
+            sample_directory = os.path.join(self._output_directory, sample_id)
+            fits_directory = os.path.join(sample_directory, "_fits_temp")
+
+            try:
+                # Process output
+                self._process_output(sample_id, fits_directory, sample_directory)
+            except Exception as e:
+                logger.error("Error while processing data for sample %s (is skipped): %s", sample_id, e)
+
+                # Delete sample directory because it contains inconsistent data
+                shutil.rmtree(sample_directory, ignore_errors=True)
+            finally:
+                # Delete fits directory in any case to avoid space issues
+                shutil.rmtree(fits_directory, ignore_errors=True)
 
     @classmethod
-    def _process_output(cls):
-        # TODO: Perform actual work
-        from time import sleep
-        import random
-        sleep(random.uniform(9, 18))
-        logger.info("Processed output")
+    def _process_output(cls, sample_id: str, input_directory: str, output_directory: str):
+        logger.debug("Created sample %s output", sample_id)
