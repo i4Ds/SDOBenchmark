@@ -1,0 +1,6 @@
+*********
+Benchmark
+*********
+
+.. todo::
+    Document benchmark.
