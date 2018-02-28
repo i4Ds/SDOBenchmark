@@ -5,10 +5,20 @@ import os
 import re
 import shutil
 import urllib.request
-from typing import Tuple, List
+from typing import Tuple, List, Dict
 
+import astropy.coordinates
+import astropy.time
+import astropy.units as u
 import drms
+import numpy as np
 import pandas as pd
+import sunpy.coordinates
+import sunpy.instr.aia
+import sunpy.map
+import sunpy.physics.differential_rotation
+
+from flares import util
 
 logger = logging.getLogger(__name__)
 
@@ -137,16 +147,20 @@ class OutputProcessor(object):
         "4500"
     )
 
+    OUTPUT_SHAPE = (512, 512)
+
     def __init__(
             self,
             input_queue: multiprocessing.Queue,
             output_directory: str,
             meta_data: pd.DataFrame,
+            noaa_regions: Dict[int, Tuple[dt.datetime, dt.datetime, List[dict]]],
             cadence_hours: int
     ):
         self._input_queue = input_queue
         self._output_directory = output_directory
         self._meta_data = meta_data
+        self._noaa_regions = noaa_regions
         self._cadence_hours = cadence_hours
 
     def __call__(self, *args, **kwargs):
@@ -186,6 +200,9 @@ class OutputProcessor(object):
         # 7.        Cut out part of image
         # 8.    Save all cuts into numpy array
 
+        sample_meta_data = self._meta_data.loc[sample_id]
+        _, _, region_events = self._noaa_regions[sample_meta_data.noaa_num]
+
         # Create a list of available times per wavelength
         # TODO: This ignores HMI
         available_times = {wavelength: [] for wavelength in self.IMAGE_TYPES}
@@ -194,4 +211,91 @@ class OutputProcessor(object):
             current_datetime = dt.datetime.strptime(current_datetime_raw, "%Y-%m-%dT%H%M%S")
             available_times[current_wavelength].append((current_datetime, current_file))
 
+        # Assign images to actual time steps
+        num_outputs = (sample_meta_data.end - sample_meta_data.start) // dt.timedelta(hours=self._cadence_hours)
+        time_steps = [(sample_meta_data.start + dt.timedelta(hours=offset), dict()) for offset in range(num_outputs)]
+        for current_wavelength, current_available_times in available_times.items():
+            if len(current_available_times) == num_outputs:
+                # Data for full duration available
+                for idx, (_, current_file) in enumerate(sorted(current_available_times)):
+                    time_steps[idx][1][current_wavelength] = current_file
+            else:
+                # Use closest time step to each image
+                # TODO: Could actually check record interval for missing values
+                for current_datetime, current_file in current_available_times:
+                    _, current_step_images = min(time_steps, key=lambda step: abs(step[0] - current_datetime))
+                    assert current_wavelength not in current_step_images
+                    current_step_images[current_wavelength] = current_file
+
+        # Process each time step
+        for current_datetime, current_images in time_steps:
+            output_arrays = dict()
+
+            # Process each wavelength
+            for current_wavelength, current_file in current_images.items():
+                current_map: sunpy.map.sources.AIAMap = sunpy.map.Map(os.path.join(input_directory, current_file))
+
+                # Check if map is usable
+                if not self._is_usable(current_map):
+                    logger.warning("Discarding wavelength %s for sample %s", current_wavelength, sample_id)
+                    continue
+
+                # Convert to level 1.5
+                assert current_map.processing_level == 1.0
+                current_map = sunpy.instr.aia.aiaprep(current_map)
+
+                # Find coordinates of closest active region event which started before the image
+                image_time = current_map.date
+                closest_region_event = max(
+                    (event for event in region_events if util.hek_date(event["event_starttime"]) <= image_time),
+                    key=lambda event: util.hek_date(event["event_starttime"])
+                )
+                region_position = astropy.coordinates.SkyCoord(
+                    float(closest_region_event["hpc_x"]) * u.arcsec,
+                    float(closest_region_event["hpc_y"]) * u.arcsec,
+                    frame="helioprojective",
+                    obstime=util.hek_date(closest_region_event["event_starttime"])
+                )
+                region_position_rotated = sunpy.physics.differential_rotation.solar_rotate_coordinate(
+                    region_position,
+                    image_time
+                )
+
+                # Transform target position to pixels, in carthesion coordinates (origin bottom left)
+                center_x, center_y = current_map.world_to_pixel(region_position_rotated)
+                center_x, center_y = int(center_x.to_value()), int(center_y.to_value())
+                assert center_x - self.OUTPUT_SHAPE[1] / 2 >= 0
+                assert center_y - self.OUTPUT_SHAPE[0] / 2 >= 0
+                assert center_x + self.OUTPUT_SHAPE[1] / 2 < current_map.data.shape[1]
+                assert center_y + self.OUTPUT_SHAPE[0] / 2 < current_map.data.shape[0]
+
+                # Cut patch out of image
+                # Sunpy maps assume a carthesian coordinate system which is already incorporated in the pixel conversion
+                patch_start_y = center_y - self.OUTPUT_SHAPE[0] // 2
+                patch_start_x = center_x - self.OUTPUT_SHAPE[1] // 2
+                current_patch = current_map.data[
+                    patch_start_y:patch_start_y + self.OUTPUT_SHAPE[0],
+                    patch_start_x:patch_start_x + self.OUTPUT_SHAPE[1],
+                ]
+                assert current_patch.shape == self.OUTPUT_SHAPE
+
+                # TODO: Convert back to int16? (results in way better compression)
+
+                # Save patch
+                output_arrays[current_wavelength] = current_patch
+
+            # Save patches as compressed numpy file
+            output_file_path = os.path.join(output_directory, current_datetime.strftime("%Y-%m-%dT%H%M%S"))
+            np.savez_compressed(output_file_path, **output_arrays)
+
         logger.debug("Created sample %s output", sample_id)
+
+    @classmethod
+    def _is_usable(cls, target: sunpy.map.sources.AIAMap) -> bool:
+        # Check header values and quality flags to be mostly sure the image is usable
+        # TODO: Are those checks enough? Are there better methods to check for faulty images?
+        return \
+            target.meta["ACS_MODE"] == "SCIENCE" \
+            and target.meta["ACS_ECLP"] != "YES" \
+            and target.meta["ACS_SUNP"] == "YES" \
+            and target.meta["QUALITY"] & (1 << 18) == 0  # Calibration flag

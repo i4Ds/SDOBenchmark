@@ -4,7 +4,7 @@ import datetime as dt
 import logging
 import multiprocessing
 import os
-from typing import Dict
+from typing import Dict, Tuple, List
 
 import dateutil.parser
 import intervaltree
@@ -36,9 +36,6 @@ logger = logging.getLogger(__name__)
 # TODO: How should the peak flux for non-flaring active regions be calculated?
 # TODO: What HMI data should be used?
 
-# TODO: Download and process FITS files
-# TODO: How large should input patches be?
-# TODO: Make sure no instrument issues are present (e.g. satellite maneuvers, read in FITS header)
 # TODO: SDO sensors collect less intensity over time, should this be incorporated?
 
 
@@ -241,18 +238,26 @@ def create_output(
         parse_dates=["start", "end", "peak"]
     )
 
+    # Load active regions
+    logger.debug("Loading saved events")
+    events_raw_path = os.path.join(path_helper.raw_directory, f"events_{date_suffix}.json")
+    with open(events_raw_path, "r") as f:
+        raw_events = json.load(f)
+    _, noaa_active_regions = extract_events(raw_events)
+
     logger.info("Creating test samples")
-    _create_output(test_samples, test_directory, email_address, cadence_hours)
+    _create_output(test_samples, test_directory, email_address, cadence_hours, noaa_active_regions)
 
     logger.info("Creating training samples")
-    _create_output(training_samples, training_directory, email_address, cadence_hours)
+    _create_output(training_samples, training_directory, email_address, cadence_hours, noaa_active_regions)
 
 
 def _create_output(
         samples: pd.DataFrame,
         output_directory: str,
         email_address: str,
-        cadence_hours: int
+        cadence_hours: int,
+        noaa_regions: Dict[int, Tuple[dt.datetime, dt.datetime, List[dict]]]
 ):
     if not os.path.isdir(output_directory):
         logger.debug("Creating output directory %s", output_directory)
@@ -264,7 +269,7 @@ def _create_output(
     samples.to_csv(meta_file, sep=";", index_label="id")
     logger.info("Wrote meta data file")
 
-    _create_image_output(samples, output_directory, email_address, cadence_hours)
+    _create_image_output(samples, output_directory, email_address, cadence_hours, noaa_regions)
     logger.info("Wrote samples")
 
 
@@ -272,7 +277,8 @@ def _create_image_output(
         samples: pd.DataFrame,
         output_directory: str,
         email_address: str,
-        cadence_hours: int
+        cadence_hours: int,
+        noaa_regions: Dict[int, Tuple[dt.datetime, dt.datetime, List[dict]]]
 ):
     # Create a list of samples which are to be created
     target_samples = [
@@ -295,7 +301,7 @@ def _create_image_output(
         # Create workers
         request_sender = RequestSender(download_queue, email_address, cadence_hours)
         image_loader = ImageLoader(download_queue, processing_queue, output_directory)
-        output_processor = OutputProcessor(processing_queue, output_directory, samples, cadence_hours)
+        output_processor = OutputProcessor(processing_queue, output_directory, samples, noaa_regions, cadence_hours)
 
         # Start workers
         logger.debug("Starting output processor workers")
