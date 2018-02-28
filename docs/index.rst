@@ -6,5 +6,5 @@ Welcome to Flare Benchmark's documentation!
    :maxdepth: 2
    :caption: Contents:
 
-    01_dataset
-    02_benchmark
+   01_dataset
+   02_benchmark
