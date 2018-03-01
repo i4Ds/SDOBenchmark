@@ -50,9 +50,36 @@ The format for the time step files is (in Python date time format syntax)::
 
 Parameters
 ==========
+Various parameters change the created data set.
+The following table lists all parameters and their defaults:
 
-.. todo::
-    Document data set parameters like duration or cadence.
++---------------+---------------------------------------+------------+
+| Parameter     | Description                           | Default    |
++===============+=======================================+============+
+| start         | First time (inclusive) of the period  | 01.01.2012 |
+|               | for which samples are created         |            |
++---------------+---------------------------------------+------------+
+| end           | Last time (exclusive) of the period   | 01.01.2018 |
+|               | for which samples are created         |            |
++---------------+---------------------------------------+------------+
+| input_hours   | Number of hours for which input is    | 12 hours   |
+|               | provided before a prediction has to   |            |
+|               | be made                               |            |
++---------------+---------------------------------------+------------+
+| output_hours  | Number of hours after the last input  | 24 hours   |
+|               | for which a prediction has to be made |            |
++---------------+---------------------------------------+------------+
+| cadence_hours | Number of hours between two           | 1 hour     |
+|               | consecutive input frames              |            |
++---------------+---------------------------------------+------------+
+| seed          | Seed used to initialize the random    | 726527     |
+|               | number generator for sampling         |            |
++---------------+---------------------------------------+------------+
+
+The chosen parameters create a data set which provides 12 sets of images
+as inputs for a prediction over 24 hours.
+The chosen seed guarantees a good distribution of flare classes in the
+test set.
 
 
 Creation Algorithm
