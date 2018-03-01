@@ -148,7 +148,7 @@ Test set active regions are then sampled from those groups (except *free*)
 by looking at each group individually:
 
 - If the group contains less than 6 active regions, a single random active region is
-   assigned to the test set with a 50% chance.
+  assigned to the test set with a 50% chance.
 - Otherwise, 3 active regions are assigned to the test set at random.
 
 Afterwards, active regions from the *free* group are assigned to the test set at random.
