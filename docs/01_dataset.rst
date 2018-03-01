@@ -58,8 +58,44 @@ Parameters
 Creation Algorithm
 ==================
 
+The data set creation is divided into the following steps:
+
+1. Data loading
+2. Event processing
+3. Sampling
+4. Output creation
+
+All steps use existing data if already present and only perform
+actions for missing data.
+
+Data Loading
+------------
+Initially, the raw event list for all flares and active regions
+in the data set time frame is downloaded from the
+`Heliophysics Events Knowledgebase (HEK) <https://www.lmsal.com/hek/>`_.
+The events are stored in a JSON file for later usage.
+
+Aditionally, the GOES x-ray flux for the data set time frame is
+downloaded from the `NOAA archive <https://satdat.ngdc.noaa.gov/sem/>`_
+and stored in a separate directory, resulting in a file for each day.
+
+Event Processing
+----------------
+
 .. todo::
-    Data set creation algorithm.
+    Document event processing.
+
+Sampling
+--------
+
+.. todo::
+    Document sampling.
+
+Output Creation
+---------------
+
+.. todo::
+    Document output creation.
 
 
 Open Points
