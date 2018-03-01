@@ -193,9 +193,49 @@ If any validation fails, no output is created.
 
 Output Creation
 ---------------
+Finally, the actual samples are created in three steps:
 
-.. todo::
-    Document output creation.
+1. FITS data over the input duration is requested from JSOC.
+2. The FITS images of a completed request are downloaded.
+3. Downloaded FITS images are processed to create output tiles.
+
+Due to the nature of the data, the output creation is parallelized.
+Each of the three steps are executed in parallel for a number of samples
+at the same time.
+
+If the creation of a sample fails (e.g. because a network connection
+issue arises), all temporary and processed data of that sample is deleted
+to avoid incosistencies.
+
+JSOC requests are issued for the *as-is* format and *url-quick* protocol.
+The advantage of that approach is that, most of the time, no actual request
+has to be processed and the FITS files are available for download immediately.
+In case a request has to be processed (e.g. because JSOC has to load the files
+from a tape drive), it is waited until the request finishes.
+
+FITS files are downloaded into a temporary *_fits_temp* directory which
+resides inside the sample directory.
+This directory will be deleted after the downloaded images have been processed.
+A single downloaded FITS file represents a single wavelength at a single
+time, in AIA level 1.0 format.
+
+After all files of a sample are downloaded, they are further processed.
+First, because some files can be missing, the downloaded FITS files
+have to be assigned to individual time steps in the input candence.
+For each time step, each file for each frequency is processed as follows:
+
+1. FITS header values are verified to check if instrument or other issues
+   (e.g. an earth eclipse) are present on the image.
+   If yes, the image is discarded.
+2. AIA level 1 to level 1.5 processing is performed.
+3. The target active region coordinates with regard to solar rotation
+   and the time difference is calculated on the current image.
+4. A patch around the rotated coordinates is cut out and assigned to
+   the time step for its wavelength.
+
+For each time step, a compressed Numpy file is created.
+The compressed file contains a single Numpy array for each available
+wavelength.
 
 
 Open Points
