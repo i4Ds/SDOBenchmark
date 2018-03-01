@@ -63,7 +63,8 @@ The data set creation is divided into the following steps:
 1. Data loading
 2. Event processing
 3. Sampling
-4. Output creation
+4. Sampling validation
+5. Output creation
 
 All steps use existing data if already present and only perform
 actions for missing data.
@@ -88,7 +89,8 @@ period length. Thus, a range is a part of an active region during which
 the same prediction is expected.
 
 Initially, SWPC flares and NOAA active region events are extracted from the
-raw HEK event list. Each SWPC flare is then mapped to a NOAA active region.
+raw HEK event list. Multiple HEK events belonging to the same NOAA active region
+are grouped together. Each SWPC flare is then mapped to a NOAA active region.
 The mapping is later used to determine cut-out coordinates as SWPC events often
 lack coordinate values and to slice the active region's duration into ranges.
 
@@ -135,9 +137,59 @@ of no use.
 
 Sampling
 --------
+During the sampling step, NOAA active regions are first split into test and training sets
+and afterwards processed to create actual samples for the active region ranges.
 
-.. todo::
-    Document sampling.
+To ensure an unbiased test set, each active region is assigned to only one set.
+First, active regions are grouped by their largest flare's goes class (letter and first digit).
+Active regions without any flares are grouped into a separate *free* group.
+
+Test set active regions are then sampled from those groups (except *free*)
+by looking at each group individually:
+
+- If the group contains less than 6 active regions, a single random active region is
+   assigned to the test set with a 50% chance.
+- Otherwise, 3 active regions are assigned to the test set at random.
+
+Afterwards, active regions from the *free* group are assigned to the test set at random.
+The number of active regions to use is 1/4th of the number of flaring active regions in
+the test set. This way, the number of free active regions in the test set is roughly equal
+to the number of active regions per general GOES class (B, C, M and X).
+
+All active regions which were not assigned to the test set are then assigned to the training set.
+
+Individual active regions in each set are further processed to create actual samples.
+Each active region range is split into a number of samples, each sample being an input time window
+and a target prediction. Input time windows are not allowed to overlap, thus creating an upper bound
+of the number of samples resulting from a single range.
+The minimum number of samples of a range is determined as follows:
+
+- If the range's target prediction is an M or larger flare and the maximum number of samples
+  is more than 1, the minimum number of samples is 2.
+- Otherwise, the minimum number of samples is 1.
+
+The number of samples is then uniformly chosen between the minimum and maximum number of samples.
+The chosen number of input windows are then randomly taken from the range so that no two input windows
+overlap.
+
+It has to be noted that a active region range defines a prediction period. Thus, the first possible
+input window starts before the region range and the last possible input window ends before the
+range end.
+
+Sampling Validation
+-----------------
+Created samples are validated to catch conceptual or implementation issues.
+
+First, it is ensured that no active region is present in both the test and training set.
+Afterwards, each sample is validated individually by checking the following:
+
+- Is the duration of each sample equal to the input duration?
+- Does each sample's peak flux happen after the input duration?
+- Does each sample's peak flux happen during in the prediction window?
+- Is each sample's input duration fully contained in its active region duration?
+- Is each sample's prediction window fully contained in its active region duration?
+
+If any validation fails, no output is created.
 
 Output Creation
 ---------------
