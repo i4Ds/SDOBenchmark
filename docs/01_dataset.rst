@@ -81,9 +81,57 @@ and stored in a separate directory, resulting in a file for each day.
 
 Event Processing
 ----------------
+During the event processing, each NOAA active region is split into *ranges*.
+A *range* consists of a start time, end time, and the GOES class of the largest
+flare occurring in that range (if any). Each range is at least of prediction
+period length. Thus, a range is a part of an active region during which
+the same prediction is expected.
 
-.. todo::
-    Document event processing.
+Initially, SWPC flares and NOAA active region events are extracted from the
+raw HEK event list. Each SWPC flare is then mapped to a NOAA active region.
+The mapping is later used to determine cut-out coordinates as SWPC events often
+lack coordinate values and to slice the active region's duration into ranges.
+
+The mapping is performed as follows:
+
+1. If the flare has a NOAA number assigned, it is mapped to that active region.
+2. Otherwise, the closest *SSW Latest Events* flare event is searched by comparing
+   the peak, end and start time distance.
+3. If the peak time delta is not larger than 1 minute or the start and end times
+   of both events match and the peak time delta is not larger than 10 minutes,
+   the SSW event is considered to be equal to the SWPC event.
+4. If the SSW event is considered equal and has a NOAA number assigned, the SWPC
+   event is mapped to the corresponding NOAA active region.
+
+This results in a list of SWPC flare events for each NOAA active region and an
+additional list of SWPC flares which could not be assigned to any active region.
+
+Each active region is individually considered and split into ranges.
+
+First, the whole active region duration is considered *free* (usable as non-flaring
+prediction). Afterwards, each flare mapped to the active region is individually processed.
+
+The range in which a prediction window would contain the flare is chopped from the free ranges.
+This ensures that wherever inside a free range a prediction window is placed,
+the prediction window will never contain any flare.
+
+A flare's range has to fulfill the following criterias:
+
+- The prediction window can be placed anywhere inside the range while containing the flare.
+- No other flare's peak flux is larger than the one of the flare currently observed.
+- The distance between the range start and the active region start is at lest as long as the
+  input duration, guaranteeing that whenever the prediction window starts, all inputs are
+  in the active region's time range.
+
+After all flares have been processed, the active region has a list of ranges which are either
+flaring or free and non-intersecting.
+
+The ranges are post-processed by chopping out the durations of all SWPC flares which could not
+be assigned to any NOAA active region. This way, the prediction target for each range is
+guaranteed to not be accidentally too low.
+
+Finally, all ranges which are shorter than the prediction period are discarded as they are
+of no use.
 
 Sampling
 --------
