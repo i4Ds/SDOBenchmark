@@ -37,8 +37,34 @@ in the metric.
 
 Relative Performance Metrics
 ============================
+Relative performance metrics aid in the discovery of strengths and
+weaknesses of a particular model.
+
+All samples are grouped into five groups as done for the absolute
+performance metric. By treating those groups as *classes*,
+the following classification metrics can be calculated per class:
+
+- Accuracy
+- Precision
+- Recall
+
+Additionally, a confusion matrix over the five classes can be
+calculated.
+
+Those groups can further be combined to result in only two groups,
+one containing all M and larger flares, the other containing
+all smaller flares as well as non-flaring samples.
+The same classification metrics as mentioned above can then
+be calculated. The resulting metrics show how well a model
+works as an early warning system due to the detection of
+possibly significant flares.
+
 .. todo::
-    Relative performance metrics
+    It would also be interesting to use the binary classification
+    evaluation to create a ROC curve.
+
+    The curve could be created by varying the threshold which separates
+    *significant* from *insignificant* peak fluxes.
 
 
 Open Points
