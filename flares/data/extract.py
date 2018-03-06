@@ -8,15 +8,16 @@ import requests
 import flares.util as util
 
 GOES_BASE_URL = "https://satdat.ngdc.noaa.gov/sem/goes/data/full"
-GOES_START_MARKER = os.linesep + "data:" + os.linesep
+#GOES_START_MARKER = os.linesep + "data:" + os.linesep
 
 logger = logging.getLogger(__name__)
 
 
 def load_hek_data(start_datetime: dt.datetime, end_datetime: dt.datetime) -> Iterable[dict]:
     page = 1
+    sess = util.requests_retry_session()
     while True:
-        response = requests.get("http://www.lmsal.com/hek/her", {
+        r = sess.get("http://www.lmsal.com/hek/her", params={
             "cosec": "2",  # JSON format
             "cmd": "search",
             "type": "column",
@@ -32,7 +33,7 @@ def load_hek_data(start_datetime: dt.datetime, end_datetime: dt.datetime) -> Ite
             "page": page
         })
 
-        events = response.json()["result"]
+        events = r.json()["result"]
 
         if len(events) == 0:
             break
@@ -60,8 +61,9 @@ def load_goes_flux(date: dt.date) -> Optional[str]:
     target_file_name = f"g15_xrs_2s_{date_str}_{date_str}.csv"
     target_url = GOES_BASE_URL + f"/{date.year}/{date.month:02}/goes15/csv/" + target_file_name
 
+    sess = util.requests_retry_session()
     try:
-        response = requests.get(target_url)
+        response = sess.get(target_url)
         response.raise_for_status()
 
         return response.text

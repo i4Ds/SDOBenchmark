@@ -32,7 +32,6 @@ logger = logging.getLogger(__name__)
 # TODO: Handle merging and splitting active regions for test/training split
 # TODO: Check if active regions overlap each other to avoid duplicates
 # TODO: Some active regions might still produce flares which are not detected by SWPC
-# TODO: Check if SSW data is actually reliable
 # TODO: How should the peak flux for non-flaring active regions be calculated?
 # TODO: What HMI data should be used?
 
@@ -47,7 +46,9 @@ def main():
 
     path_helper = util.PathHelper(args.directory)
 
+    # Data loading
     load_raw(path_helper.raw_directory, args.start, args.end)
+
 
     date_suffix = _date_suffix(args.start, args.end)
     transform_raw(
@@ -288,15 +289,17 @@ def _create_image_output(
     ]
     logger.debug("%d samples will be created", len(target_samples))
 
+    p = 32 #8
+
     # Create pools for different download steps
     # TODO: processes, has to be fixed to avoid too many requests
-    with multiprocessing.Pool(processes=8) as request_pool, \
-            multiprocessing.Pool(processes=8) as download_pool, \
-            multiprocessing.Pool(processes=8) as process_pool, \
+    with multiprocessing.Pool(processes=p) as request_pool, \
+            multiprocessing.Pool(processes=p) as download_pool, \
+            multiprocessing.Pool(processes=p) as process_pool, \
             multiprocessing.Manager() as manager:
         # Queues for synchronisation
-        download_queue = manager.Queue(maxsize=8)
-        processing_queue = manager.Queue(maxsize=8)
+        download_queue = manager.Queue(maxsize=p)
+        processing_queue = manager.Queue(maxsize=p)
 
         # Create workers
         request_sender = RequestSender(download_queue, email_address, cadence_hours)
@@ -305,9 +308,9 @@ def _create_image_output(
 
         # Start workers
         logger.debug("Starting output processor workers")
-        output_processor_results = [process_pool.apply_async(output_processor) for _ in range(8)]
+        output_processor_results = [process_pool.apply_async(output_processor) for _ in range(p)]
         logger.debug("Starting image loader workers")
-        image_loader_results = [download_pool.apply_async(image_loader) for _ in range(8)]
+        image_loader_results = [download_pool.apply_async(image_loader) for _ in range(p)]
 
         # Map inputs to finally start full process
         logger.debug("Starting requests")
@@ -317,14 +320,14 @@ def _create_image_output(
 
         # Wait for image loader workers to finish
         logger.debug("Waiting for image loader workers to finish")
-        for _ in range(8):
+        for _ in range(p):
             download_queue.put(None)
         for current_worker_result in image_loader_results:
             current_worker_result.get()
 
         # Wait for output processor workers to finish
         logger.debug("Waiting for output processor workers to finish")
-        for _ in range(8):
+        for _ in range(p):
             processing_queue.put(None)
         for current_worker_result in output_processor_results:
             current_worker_result.get()
