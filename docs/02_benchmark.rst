@@ -30,7 +30,7 @@ GOES class classification scheme.
 
 Samples are grouped by their true peak flux, converted to a GOES class.
 All B, C, M, and X classified peaks are each grouped together.
-The fivth group consists of all *non-flaring* or *free* samples respectively.
+The fifth group consists of all *non-flaring* or *free* samples respectively.
 This way, the bias present in the peak flux distribution is not present
 in the metric.
 

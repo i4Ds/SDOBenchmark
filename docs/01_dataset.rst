@@ -125,7 +125,7 @@ The mapping is performed as follows:
 
 1. If the flare has a NOAA number assigned, it is mapped to that active region.
 2. Otherwise, the closest *SSW Latest Events* flare event is searched by comparing
-   the peak, end and start time distance.
+   the peak, end and start time distance. (goes flare list + location)
 3. If the peak time delta is not larger than 1 minute or the start and end times
    of both events match and the peak time delta is not larger than 10 minutes,
    the SSW event is considered to be equal to the SWPC event.
@@ -195,7 +195,8 @@ The minimum number of samples of a range is determined as follows:
   is more than 1, the minimum number of samples is 2.
 - Otherwise, the minimum number of samples is 1.
 
-The number of samples is then uniformly chosen between the minimum and maximum number of samples.
+The number of samples is then uniformly chosen between the minimum and maximum number of 
+samples (because we do not want neural nets to base predictions on sample interval times).
 The chosen number of input windows are then randomly taken from the range so that no two input windows
 overlap.
 
@@ -215,6 +216,8 @@ Afterwards, each sample is validated individually by checking the following:
 - Does each sample's peak flux happen during in the prediction window?
 - Is each sample's input duration fully contained in its active region duration?
 - Is each sample's prediction window fully contained in its active region duration?
+  (although this is not necessary for predictions at the limb, it is an easy way to prevent 
+  wrong overlaps when e.g. an active region's number changes)
 
 If any validation fails, no output is created.
 
@@ -223,7 +226,7 @@ Output Creation
 Finally, the actual samples are created in three steps:
 
 1. FITS data over the input duration is requested from JSOC.
-2. The FITS images of a completed request are downloaded.
+2. The FITS "images" of a completed request are downloaded.
 3. Downloaded FITS images are processed to create output tiles.
 
 Due to the nature of the data, the output creation is parallelized.
@@ -232,13 +235,13 @@ at the same time.
 
 If the creation of a sample fails (e.g. because a network connection
 issue arises), all temporary and processed data of that sample is deleted
-to avoid incosistencies.
+to avoid inconsistencies.
 
-JSOC requests are issued for the *as-is* format and *url-quick* protocol.
-The advantage of that approach is that, most of the time, no actual request
-has to be processed and the FITS files are available for download immediately.
-In case a request has to be processed (e.g. because JSOC has to load the files
-from a tape drive), it is waited until the request finishes.
+JSOC requests are issued for the *as-is* format and *url-quick* protocol. In this
+format, most of the times the FITS file can be downloaded immediately. It might be
+though that some preprocessing for generating the FITS file is necessary (e.g.
+because JSOC has to load the files from a tape drive), and the file can be requested 
+when ready.
 
 FITS files are downloaded into a temporary *_fits_temp* directory which
 resides inside the sample directory.
@@ -248,7 +251,7 @@ time, in AIA level 1.0 format.
 
 After all files of a sample are downloaded, they are further processed.
 First, because some files can be missing, the downloaded FITS files
-have to be assigned to individual time steps in the input candence.
+have to be assigned to individual time steps in the input cadence.
 For each time step, each file for each frequency is processed as follows:
 
 1. FITS header values are verified to check if instrument or other issues
@@ -282,9 +285,6 @@ Conceptional
 - It might be that a NOAA active region produces a flare which is not archived
   by SWPC. Non-flaring samples have to be verified to make sure no wrong
   output peak flux is provided.
-- The SWPC flare to NOAA number matching partially relies on
-  *SSW Latest Events* data. It was not determined yet if those events are
-  reliable.
 - The peak flux for non-flaring active region has to be provided in some form.
   Fluxes in the *GOES* light curve are not reliable as they capture the fluxes
   from **all** of the sun's active regions. The region peak flux has to be
@@ -292,6 +292,7 @@ Conceptional
 - A set of image header values is currently checked to see if instrument issues
   or an earth eclipse is visible on the target image. The checks used should
   be verified and it has to be checked if a more reliable method exists.
+- Ability to choose balances?
 
 Implementation
 --------------
