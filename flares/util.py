@@ -44,7 +44,7 @@ class PathHelper(object):
 
 
 def date_range(start_datetime: dt.datetime, end_datetime: dt.datetime) -> Iterable[dt.date]:
-    for day_offset in range((end_datetime - start_datetime).days):
+    for day_offset in range((end_datetime - start_datetime).days + 1):
         yield (start_datetime + dt.timedelta(days=day_offset)).date()
 
 

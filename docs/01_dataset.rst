@@ -7,28 +7,13 @@ Structure
 
 Conceptional Structure
 ----------------------
-The data provides a mapping from multiple *NOAA active region* images,
-perceived by SDO, to a peak flux which has to be predicted.
-The active region images are provided over a duration of 12 hours in a 1
-hour cadence. The peak flux prediction window are the next 24 hours after the
-last input. The input images are taken directly from FITS files without any
-data normalization or gamma correction. The flare peak fluxes stem from
-*SWPC* data.
+This dataset provides a mapping from multiple *NOAA active region* images, perceived by SDO, to a peak flux which has to be predicted. The active region images are provided over a duration of 12 hours in a 1 hour cadence. The peak flux prediction window are the next 24 hours after the last input. The input images are taken directly from FITS files without any data normalization or gamma correction. The flare peak fluxes stem from *SWPC* data.
 
-The data set is split into *training* and *test* samples.
-A single sample consists of 12 *time steps*, being each 1 hour apart,
-and a target peak flux.
+The data set is split into *training* and *test* samples. A single sample consists of 12 *time steps*, being each 1 hour apart, and a target peak flux.
 
-A time step consists of multiple 512x512 image patches.
-Each image patch corresponds to a single AIA wavelength.
-If images for all wavelengths are available, a single time step thus contains
-10 image patches, less otherwise. A single time step is a compressed Numpy
-file where the array keys stored inside correspond to the wavelength they were
-perceived from.
+A time step consists of multiple 512x512 image patches. Each image patch corresponds to a single AIA wavelength. If images for all wavelengths are available, a single time step thus contains 10 image patches, less otherwise. A single time step is a compressed Numpy file where the array keys stored inside correspond to the wavelength they were perceived from.
 
-The training and test sets are sampled in a way which prevents training
-set bias to influence test set results. Active regions in the training and
-test sets are mutually exclusive.
+The training and test sets are sampled in a way which prevents training set bias to influence test set results. Active regions in the training and test sets are mutually exclusive.
 
 The data set directory structure looks as follows::
 
@@ -76,10 +61,8 @@ The following table lists all parameters and their defaults:
 |               | number generator for sampling         |            |
 +---------------+---------------------------------------+------------+
 
-The chosen parameters create a data set which provides 12 sets of images
-as inputs for a prediction over 24 hours.
-The chosen seed guarantees a good distribution of flare classes in the
-test set.
+
+The chosen parameters create a data set which provides 12 sets of images as inputs for a prediction over 24 hours. The chosen seed guarantees a good distribution of flare classes in the test set.
 
 
 Creation Algorithm
@@ -93,39 +76,25 @@ The data set creation is divided into the following steps:
 4. Sampling validation
 5. Output creation
 
-All steps use existing data if already present and only perform
-actions for missing data.
+All steps use existing data if already present and only perform actions for missing data.
 
 Data Loading
 ------------
-Initially, the raw event list for all flares and active regions
-in the data set time frame is downloaded from the
-`Heliophysics Events Knowledgebase (HEK) <https://www.lmsal.com/hek/>`_.
-The events are stored in a JSON file for later usage.
+Initially, the raw event list for all flares and active regions in the data set time frame is downloaded from the `Heliophysics Events Knowledgebase (HEK) <https://www.lmsal.com/hek/>`_. The events are stored in a JSON file for later usage.
 
-Aditionally, the GOES x-ray flux for the data set time frame is
-downloaded from the `NOAA archive <https://satdat.ngdc.noaa.gov/sem/>`_
-and stored in a separate directory, resulting in a file for each day.
+Aditionally, the GOES x-ray flux for the data set time frame is downloaded from the `NOAA archive <https://satdat.ngdc.noaa.gov/sem/>`_ and stored in a separate directory, resulting in a file for each day.
 
 Event Processing
 ----------------
-During the event processing, each NOAA active region is split into *ranges*.
-A *range* consists of a start time, end time, and the GOES class of the largest
-flare occurring in that range (if any). Each range is at least of prediction
-period length. Thus, a range is a part of an active region during which
-the same prediction is expected.
+During the event processing, each NOAA active region is split into *ranges*. A *range* consists of a start time, end time, and the GOES class of the largest flare occurring in that range (if any). Each range is at least of prediction period length. Thus, a range is a part of an active region during which the same prediction is expected.
 
-Initially, SWPC flares and NOAA active region events are extracted from the
-raw HEK event list. Multiple HEK events belonging to the same NOAA active region
-are grouped together. Each SWPC flare is then mapped to a NOAA active region.
-The mapping is later used to determine cut-out coordinates as SWPC events often
-lack coordinate values and to slice the active region's duration into ranges.
+Initially, SWPC flares and NOAA active region events are extracted from the raw HEK event list. Multiple HEK events belonging to the same NOAA active region are grouped together. Each SWPC flare is then mapped to a NOAA active region. The mapping is later used to determine cut-out coordinates as SWPC events often lack coordinate values and to slice the active region's duration into ranges.
 
 The mapping is performed as follows:
 
 1. If the flare has a NOAA number assigned, it is mapped to that active region.
-2. Otherwise, the closest *SSW Latest Events* flare event is searched by comparing
-   the peak, end and start time distance. (goes flare list + location)
+2. Otherwise, the closest *SSW Latest Events* flare event (goes flare list + location) is searched by comparing
+   the peak, end and start time distance.
 3. If the peak time delta is not larger than 1 minute or the start and end times
    of both events match and the peak time delta is not larger than 10 minutes,
    the SSW event is considered to be equal to the SWPC event.
@@ -148,7 +117,7 @@ A flare's range has to fulfill the following criterias:
 
 - The prediction window can be placed anywhere inside the range while containing the flare.
 - No other flare's peak flux is larger than the one of the flare currently observed.
-- The distance between the range start and the active region start is at lest as long as the
+- The distance between the range start and the active region start is at least as long as the
   input duration, guaranteeing that whenever the prediction window starts, all inputs are
   in the active region's time range.
 
@@ -205,7 +174,7 @@ input window starts before the region range and the last possible input window e
 range end.
 
 Sampling Validation
------------------
+-------------------
 Created samples are validated to catch conceptual or implementation issues.
 
 First, it is ensured that no active region is present in both the test and training set.
@@ -293,6 +262,7 @@ Conceptional
   or an earth eclipse is visible on the target image. The checks used should
   be verified and it has to be checked if a more reliable method exists.
 - Ability to choose balances?
+- Flare prediction range is cut JUST before another higher peak happens. This doesn't make sense because the flux is still higher right before the peak than the peak we try to predict.
 
 Implementation
 --------------
@@ -316,3 +286,5 @@ General
 -------
 - The sampling (especially the selection of input time ranges) might currently
   not be stochastically correct and needs to be verified.
+
+

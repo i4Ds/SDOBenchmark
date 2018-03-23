@@ -12,7 +12,7 @@ import pandas as pd
 import simplejson as json
 
 import flares.util as util
-from flares.data.extract import load_hek_data, load_goes_flux, goes_files
+from flares.data.extract import load_hek_data, load_goes_flux, goes_files, load_all_goes_profiles
 from flares.data.load import sample_path, RequestSender, ImageLoader, OutputProcessor
 from flares.data.transform import extract_events, map_flares, active_region_time_ranges, sample_ranges, verify_sampling
 
@@ -78,7 +78,7 @@ def load_raw(output_directory: str, start: dt.datetime, end: dt.datetime):
     date_suffix = _date_suffix(start, end)
 
     # GOES flux
-    goes_raw_path = os.path.join(output_directory, f"goes")
+    goes_raw_path = os.path.join(output_directory, "goes")
     logger.info("Loading GOES flux to %s", goes_raw_path)
 
     os.makedirs(goes_raw_path, exist_ok=True)
@@ -103,7 +103,10 @@ def load_raw(output_directory: str, start: dt.datetime, end: dt.datetime):
         logger.info("Event list not found, will be downloaded to %s", events_raw_path)
 
         with open(events_raw_path, "w") as f:
-            json.dump(load_hek_data(start, end), f, iterable_as_array=True)
+            hek_events = load_hek_data(start, end)
+            import numpy as np
+            np.set_printoptions(precision=4)
+            json.dump(hek_events, f, iterable_as_array=True)
 
         logger.info("Loaded event list")
 
@@ -132,6 +135,7 @@ def transform_raw(
     with open(events_raw_path, "r") as f:
         raw_events = json.load(f)
 
+    print('Extracting events from raw...')
     swpc_flares, noaa_active_regions = extract_events(raw_events)
     logger.debug(
         "Extracted %d SWPC flares and %d (grouped) NOAA active regions", len(swpc_flares), len(noaa_active_regions)
@@ -150,15 +154,12 @@ def transform_raw(
             len(mapped_flares), len(unmapped_flares)
         )
 
-        # logger.debug("Loading saved GOES flux")
-        # goes_directory = os.path.join(input_directory, "goes")
-        # goes_flux = pd.concat([
-        #     _parse_goes_flux(os.path.join(goes_directory, current_file))
-        #     for current_file in os.listdir(goes_directory)
-        # ])
+        # load GOES curves
+        logger.info('Loading GOES curves...')
+        goes = load_all_goes_profiles(os.path.join(input_directory, "goes"))
 
         ranges = active_region_time_ranges(
-            input_duration, output_duration, noaa_active_regions, mapped_flares, unmapped_flares
+            input_duration, output_duration, noaa_active_regions, mapped_flares, unmapped_flares, goes
         )
         logger.info("Computed ranges")
 

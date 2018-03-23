@@ -103,7 +103,7 @@ def map_flares(
         event_end = util.hek_date(event["event_endtime"])
         event_peak = util.hek_date(event["event_peaktime"])
 
-        # Find matching SSW event
+        # Find matching SSW event by peak time
         match_start, match_peak, match_end, match_event = min(
             ssw_flares,
             key=lambda candidate_event: (
@@ -158,7 +158,8 @@ def active_region_time_ranges(
         output_duration: dt.timedelta,
         noaa_regions: Dict[int, Tuple[dt.datetime, dt.datetime, List[dict]]],
         flare_mapping: List[Tuple[dict, int]],
-        unmapped_flares: List[dict]
+        unmapped_flares: List[dict],
+        goes: pd.DataFrame
 ) -> Dict[int, intervaltree.IntervalTree]:
 
     # Create interval tree of unmapped ranges for fast lookup later on
@@ -191,6 +192,8 @@ def active_region_time_ranges(
             range_min = max(flare_peak - output_duration + dt.timedelta(seconds=1), region_start + input_duration)
             range_max = min(flare_peak + output_duration, region_end + dt.timedelta(seconds=1))
 
+            #TODO: Bigger flares check necessary with GOES profile check?
+
             # Check if any bigger flares happen before
             prev_idx = idx - 1
             while prev_idx >= 0 and util.hek_date(flares[prev_idx]["event_peaktime"]) >= range_min:
@@ -205,13 +208,17 @@ def active_region_time_ranges(
             # Check if any bigger flares happen afterwards
             next_idx = idx + 1
             while next_idx < len(flares) and util.hek_date(flares[next_idx]["event_peaktime"]) < range_max:
-                # Check if check flare is bigger than current, if yes, reduce start range
+                # Check if check flare is bigger than current, if yes, reduce end range
                 if flares[next_idx]["fl_goescls"] > flare_class:
                     # Last datetime (exclusive) is the larger flare
                     range_max = util.hek_date(flares[next_idx]["event_peaktime"])
                     break
                 else:
                     next_idx += 1
+
+            goes_profile = goes[range_min:range_max]
+            prof_around_peak = goes_profile[flare_peak - dt.timedelta(minutes=1):flare_peak + dt.timedelta(minutes=1)]
+            max_around_peak = prof_around_peak.max(axis='A_FLUX')
 
             if range_max - range_min >= output_duration:
                 assert range_min <= flare_peak < range_max
@@ -256,7 +263,7 @@ def active_region_time_ranges(
 
             if current_class == "free":
                 # TODO: What to use here? GOES curve does not seem to reliable...
-                current_peak_flux = np.float128("1e-8")
+                current_peak_flux = np.float128("1e-9")
                 logger.warning("Approximating peak flux for non-flaring region as %s", current_peak_flux)
             else:
                 current_peak_flux = _class_to_flux(current_class)
@@ -285,6 +292,10 @@ def _class_to_flux(goes_class: str) -> np.float128:
         "M": np.float128(1e-5),
         "X": np.float128(1e-4)
     }[goes_class[0]]
+
+    # https://www.ngdc.noaa.gov/stp/satellite/goes/doc/GOES_XRS_readme.pdf
+    # "To get the true fluxes, divide the short band flux by 0.85 and divide the long band flux by 0.7"
+    scale = scale / 0.85
 
     return scale * np.float128(goes_class[1:])
 

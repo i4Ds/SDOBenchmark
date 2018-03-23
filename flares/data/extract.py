@@ -2,6 +2,7 @@ import datetime as dt
 import logging
 import os
 from typing import Iterable, Optional, Tuple
+import pandas as pd
 
 import requests
 
@@ -30,7 +31,11 @@ def load_hek_data(start_datetime: dt.datetime, end_datetime: dt.datetime) -> Ite
             "y1": "-1200",
             "y2": "1200",
             "result_limit": "500",
-            "page": page
+            "page": page,
+            "return": "hpc_bbox,hpc_coord,event_type,intensmin,obs_meanwavel,intensmax,intensmedian,obs_channelid,ar_noaaclass,frm_name,obs_observatory,hpc_x,hpc_y,kb_archivdate,ar_noaanum,frm_specificid,hpc_radius,event_starttime,event_endtime,event_peaktime,fl_goescls,frm_daterun",
+            "param0": "FRM_NAME",
+            "op0": "=",
+            "value0": "NOAA SWPC Observer,SWPC,SSW Latest Events"
         })
 
         events = r.json()["result"]
@@ -73,3 +78,48 @@ def load_goes_flux(date: dt.date) -> Optional[str]:
     except Exception as e:
         logger.warning("Unknown error while loading %s, will be skipped: %s", target_url, e)
         return None
+
+
+def load_all_goes_profiles(goes_directory: str) -> pd.DataFrame:
+    return pd.concat([
+        _parse_goes_flux(os.path.join(goes_directory, current_file))
+        for current_file in os.listdir(goes_directory)
+        if os.path.exists(os.path.join(goes_directory, current_file))
+    ])
+
+'''def goes_profile(start_datetime: dt.datetime, end_datetime: dt.datetime, goes_directory: str) -> Optional[pd.DataFrame]:
+    flist = [
+        _parse_goes_flux(os.path.join(goes_directory, current_file))
+        for (current_file, current_date) in goes_files(start_datetime, end_datetime) #os.listdir(goes_directory)
+        if os.path.exists(os.path.join(goes_directory, current_file))
+    ]
+    if len(flist) == 0:
+        return None
+    fluxes = pd.concat(flist)
+    fluxes = fluxes[start_datetime:end_datetime]
+    if len(fluxes) == 0:
+        return None
+    return fluxes
+
+def goes_profile_fromfile(start_datetime: dt.datetime, end_datetime: dt.datetime, goes_directory: str) -> Optional[pd.DataFrame]:
+    flist = [
+        _parse_goes_flux(os.path.join(goes_directory, current_file))
+        for (current_file, current_date) in goes_files(start_datetime, end_datetime) #os.listdir(goes_directory)
+        if os.path.exists(os.path.join(goes_directory, current_file))
+    ]
+    if len(flist) == 0:
+        return None
+    fluxes = pd.concat(flist)
+    fluxes = fluxes[start_datetime:end_datetime]
+    if len(fluxes) == 0:
+        return None
+    return fluxes'''
+
+def _parse_goes_flux(file_path: str) -> pd.DataFrame:
+    with open(file_path, "r") as f:
+        # Skip lines until data: label is read
+        for line in f:
+            if line.startswith("data:"):
+                break
+
+        return pd.read_csv(f, sep=",", parse_dates=["time_tag"], index_col="time_tag", usecols=["time_tag", "A_FLUX"])
