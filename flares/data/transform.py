@@ -173,6 +173,9 @@ def active_region_time_ranges(
         unmapped_ranges.addi(unmapped_start, unmapped_end)
     unmapped_ranges.merge_overlaps()
 
+    total_free_count = 0
+    total_free_sum = dt.timedelta(seconds=0)
+
     result = dict()
     for noaa_id, (region_start, region_end, region_events) in noaa_regions.items():
         flares = list(sorted(
@@ -275,9 +278,9 @@ def active_region_time_ranges(
             current_class, current_peak_time = current_interval.data
 
             if current_class == "free":
-                # TODO: What to use here? GOES curve does not seem to reliable...
                 current_peak_flux = np.float128("1e-9")
-                logger.warning("Approximating peak flux for non-flaring region as %s", current_peak_flux)
+                total_free_count += 1
+                total_free_sum += current_interval.end - current_interval.begin
             else:
                 current_peak_flux = _class_to_flux(current_class)
 
@@ -292,6 +295,8 @@ def active_region_time_ranges(
             logger.debug("Removed %d free intervals which had bad GOES data", len(region_ranges) - len(updated_ranges))
 
         result[noaa_id] = updated_ranges
+
+    logger.warning("Approximating peak flux for %d free ranges (total %s) as 1e-9", total_free_count, str(total_free_sum))
 
     return result
 
