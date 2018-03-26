@@ -17,7 +17,8 @@ def extract_events(raw_events: List[dict]) -> Tuple[List[dict], Dict[int, Tuple[
     noaa_regions = dict()
     for event in raw_events:
         event['starttime'] = util.hek_date(event["event_starttime"])
-        event['peaktime'] = util.hek_date(event["event_peaktime"])
+        if event["event_type"] == "FL":
+            event['peaktime'] = util.hek_date(event["event_peaktime"])
         event['endtime'] = util.hek_date(event["event_endtime"])
 
         # Extract NOAA active region events and group them by their number
@@ -193,41 +194,43 @@ def active_region_time_ranges(
             range_min = max(flare_peak - output_duration + dt.timedelta(seconds=1), region_start + input_duration)
             range_max = min(flare_peak + output_duration, region_end + dt.timedelta(seconds=1))
 
-            #TODO iff there's a bigger flare around (HEK), check with GOES curve for correct cuts.
+            # iff there's a bigger flare around from the same AR (HEK),
+            # check with GOES curve for correct cuts.
+            for idx2, flare_event2 in enumerate(flares):
+                if idx2 == idx:
+                    continue
 
+                # Does a flare of the same region overlap?
+                if flare_event["starttime"] <= flare_event2["endtime"] and flare_event["endtime"] >= flare_event2["starttime"]:
 
-
-
-            # Check if any bigger flares happen before
-            prev_idx = idx - 1
-            while prev_idx >= 0 and flares[prev_idx]["peaktime"] >= range_min:
-                # Check if check flare is bigger than current, if yes, reduce start range
-                if flares[prev_idx]["fl_goescls"] > flare_class:
-                    # First datetime is the one just after the flare
-                    range_min = flares[prev_idx]["peaktime"] + dt.timedelta(seconds=1)
-                    break
-                else:
-                    prev_idx -= 1
-
-            # Check if any bigger flares happen afterwards
-            next_idx = idx + 1
-            while next_idx < len(flares) and flares[next_idx]["peaktime"] < range_max:
-                # Check if check flare is bigger than current, if yes, reduce end range
-                if flares[next_idx]["fl_goescls"] > flare_class:
-                    # Last datetime (exclusive) is the larger flare
-                    range_max = flares[next_idx]["peaktime"]
-                    break
-                else:
-                    next_idx += 1
-
-            #TODO: Bigger flares check necessary with GOES profile check?
-
-            #TODO: Search the GOES curve to determine the range where this flare's peak flux is the highest
-            flare_start = flare_event["starttime"]
-            flare_end = flare_event["endtime"]
-            goes_profile = goes[(goes.index > range_min) & (goes.index <= range_max)]
-            prof_around_peak = goes_profile[flare_peak - dt.timedelta(minutes=1):flare_peak + dt.timedelta(minutes=1)]
-            max_around_peak = prof_around_peak.max(axis='A_FLUX')
+                    # Cut where flare_event2's flare flux becomes higher than flare_event's peak_flux
+                    if flare_event2["starttime"] < flare_event["endtime"]:
+                        overlap_range = goes[(goes.index > flare_event2["starttime"]) & (goes.index <= flare_event["endtime"])]
+                        # cut when two successive GOES values are higher than peak_flux
+                        last_over_thresh = False
+                        for (f_time, f_val) in overlap_range.itertuples():
+                            if f_val > flare_event["peak_flux"]:
+                                if last_over_thresh is False:
+                                    last_over_thresh = True
+                                else:
+                                    range_max = f_time - dt.timedelta(seconds=30)
+                                    break
+                            else:
+                                last_over_thresh = False
+                    elif flare_event2["endtime"] > flare_event["starttime"]:
+                        overlap_range = goes[(goes.index > flare_event["starttime"]) & (goes.index <= flare_event2["endtime"])]
+                        overlap_range = overlap_range[::-1]
+                        # cut when two successive GOES values are higher than peak_flux
+                        last_over_thresh = False
+                        for (f_time, f_val) in overlap_range.itertuples():
+                            if f_val > flare_event["peak_flux"]:
+                                if last_over_thresh is False:
+                                    last_over_thresh = True
+                                else:
+                                    range_min = f_time + dt.timedelta(seconds=30)
+                                    break
+                            else:
+                                last_over_thresh = False
 
             if range_max - range_min >= output_duration:
                 assert range_min <= flare_peak < range_max
@@ -277,13 +280,12 @@ def active_region_time_ranges(
             else:
                 current_peak_flux = _class_to_flux(current_class)
 
-            # TODO: This if is currently useless
-            if current_peak_flux is not None:
-                updated_ranges.addi(
-                    current_interval.begin,
-                    current_interval.end,
-                    (current_class, current_peak_time, current_peak_flux)
-                )
+            #if current_peak_flux is not None:
+            updated_ranges.addi(
+                current_interval.begin,
+                current_interval.end,
+                (current_class, current_peak_time, current_peak_flux)
+            )
 
         if len(region_ranges) != len(updated_ranges):
             logger.debug("Removed %d free intervals which had bad GOES data", len(region_ranges) - len(updated_ranges))

@@ -32,7 +32,7 @@ def load_hek_data(start_datetime: dt.datetime, end_datetime: dt.datetime) -> Ite
             "y2": "1200",
             "result_limit": "500",
             "page": page,
-            "return": "hpc_bbox,hpc_coord,event_type,intensmin,obs_meanwavel,intensmax,intensmedian,obs_channelid,ar_noaaclass,frm_name,obs_observatory,hpc_x,hpc_y,kb_archivdate,ar_noaanum,frm_specificid,hpc_radius,event_starttime,event_endtime,event_peaktime,fl_goescls,frm_daterun",
+            "return": "hpc_bbox,hpc_coord,event_type,intensmin,obs_meanwavel,intensmax,intensmedian,obs_channelid,ar_noaaclass,frm_name,obs_observatory,hpc_x,hpc_y,kb_archivdate,ar_noaanum,frm_specificid,hpc_radius,event_starttime,event_endtime,event_peaktime,fl_goescls,frm_daterun,peak_flux",
             "param0": "FRM_NAME",
             "op0": "=",
             "value0": "NOAA SWPC Observer,SWPC,SSW Latest Events"
@@ -81,10 +81,11 @@ def load_goes_flux(date: dt.date) -> Optional[str]:
 
 
 def load_all_goes_profiles(goes_directory: str) -> pd.DataFrame:
+    print('Parsing GOES files...')
     return pd.concat([
         _parse_goes_flux(os.path.join(goes_directory, current_file))
         for current_file in os.listdir(goes_directory)
-        if os.path.exists(os.path.join(goes_directory, current_file))
+        if os.path.exists(os.path.join(goes_directory, current_file)) and current_file.startswith("g15")
     ])
 
 '''def goes_profile(start_datetime: dt.datetime, end_datetime: dt.datetime, goes_directory: str) -> Optional[pd.DataFrame]:
