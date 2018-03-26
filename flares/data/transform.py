@@ -17,9 +17,10 @@ def extract_events(raw_events: List[dict]) -> Tuple[List[dict], Dict[int, Tuple[
     noaa_regions = dict()
     for event in raw_events:
         event['starttime'] = util.hek_date(event["event_starttime"])
+        event['endtime'] = util.hek_date(event["event_endtime"])
         if event["event_type"] == "FL":
             event['peaktime'] = util.hek_date(event["event_peaktime"])
-        event['endtime'] = util.hek_date(event["event_endtime"])
+            event['fl_peakflux'] = _class_to_flux(event["fl_goescls"])
 
         # Extract NOAA active region events and group them by their number
         if event["event_type"] == "AR" and event["frm_name"] == "NOAA SWPC Observer":
@@ -206,10 +207,10 @@ def active_region_time_ranges(
                     # Cut where flare_event2's flare flux becomes higher than flare_event's peak_flux
                     if flare_event2["starttime"] < flare_event["endtime"]:
                         overlap_range = goes[(goes.index > flare_event2["starttime"]) & (goes.index <= flare_event["endtime"])]
-                        # cut when two successive GOES values are higher than peak_flux
+                        # cut when two successive GOES values are higher than fl_peakflux
                         last_over_thresh = False
                         for (f_time, f_val) in overlap_range.itertuples():
-                            if f_val > flare_event["peak_flux"]:
+                            if f_val > flare_event["fl_peakflux"]:
                                 if last_over_thresh is False:
                                     last_over_thresh = True
                                 else:
@@ -223,7 +224,7 @@ def active_region_time_ranges(
                         # cut when two successive GOES values are higher than peak_flux
                         last_over_thresh = False
                         for (f_time, f_val) in overlap_range.itertuples():
-                            if f_val > flare_event["peak_flux"]:
+                            if f_val > flare_event["fl_peakflux"]:
                                 if last_over_thresh is False:
                                     last_over_thresh = True
                                 else:
