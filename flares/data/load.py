@@ -247,14 +247,14 @@ class OutputProcessor(object):
                 # Find coordinates of closest active region event which started before the image
                 image_time = current_map.date
                 closest_region_event = max(
-                    (event for event in region_events if util.hek_date(event["event_starttime"]) <= image_time),
-                    key=lambda event: util.hek_date(event["event_starttime"])
+                    (event for event in region_events if event["starttime"] <= image_time),
+                    key=lambda event: event["starttime"]
                 )
                 region_position = astropy.coordinates.SkyCoord(
                     float(closest_region_event["hpc_x"]) * u.arcsec,
                     float(closest_region_event["hpc_y"]) * u.arcsec,
                     frame="helioprojective",
-                    obstime=util.hek_date(closest_region_event["event_starttime"])
+                    obstime=closest_region_event["starttime"]
                 )
                 region_position_rotated = sunpy.physics.differential_rotation.solar_rotate_coordinate(
                     region_position,

@@ -13,9 +13,14 @@ logger = logging.getLogger(__name__)
 
 
 def extract_events(raw_events: List[dict]) -> Tuple[List[dict], Dict[int, Tuple[dt.datetime, dt.datetime, List[dict]]]]:
-    # Extract NOAA active region events and group them by their number
+
     noaa_regions = dict()
     for event in raw_events:
+        event['starttime'] = util.hek_date(event["event_starttime"])
+        event['peaktime'] = util.hek_date(event["event_peaktime"])
+        event['endtime'] = util.hek_date(event["event_endtime"])
+
+        # Extract NOAA active region events and group them by their number
         if event["event_type"] == "AR" and event["frm_name"] == "NOAA SWPC Observer":
             noaa_id = event["ar_noaanum"]
 
@@ -27,8 +32,8 @@ def extract_events(raw_events: List[dict]) -> Tuple[List[dict], Dict[int, Tuple[
     # Sort active regions by start and end times
     noaa_regions = {
         noaa_id: (
-            min(map(lambda event: util.hek_date(event["event_starttime"]), events)),
-            max(map(lambda event: util.hek_date(event["event_endtime"]), events)),
+            min(map(lambda event: event["starttime"], events)),
+            max(map(lambda event: event["endtime"], events)),
             _clean_duplicate_noaa_events(events)
         )
         for noaa_id, events in noaa_regions.items()
@@ -38,9 +43,9 @@ def extract_events(raw_events: List[dict]) -> Tuple[List[dict], Dict[int, Tuple[
     swpc_flares = list(sorted(
         (event for event in raw_events if event["event_type"] == "FL" and event["frm_name"] == "SWPC"),
         key=lambda event: (
-            util.hek_date(event["event_starttime"]),
-            util.hek_date(event["event_peaktime"]),
-            util.hek_date(event["event_endtime"])
+            event["starttime"],
+            event["peaktime"],
+            event["endtime"]
         )
     ))
 
@@ -89,9 +94,9 @@ def map_flares(
     )
     ssw_flares = [
         (
-            util.hek_date(event["event_starttime"]),
-            util.hek_date(event["event_peaktime"]),
-            util.hek_date(event["event_endtime"]),
+            event["starttime"],
+            event["peaktime"],
+            event["endtime"],
             event
         )
         for event in ssw_flares
@@ -99,31 +104,27 @@ def map_flares(
 
     still_unmapped_flares = []
     for event in unmapped_flares:
-        event_start = util.hek_date(event["event_starttime"])
-        event_end = util.hek_date(event["event_endtime"])
-        event_peak = util.hek_date(event["event_peaktime"])
-
         # Find matching SSW event by peak time
         match_start, match_peak, match_end, match_event = min(
             ssw_flares,
             key=lambda candidate_event: (
-                abs(event_peak - candidate_event[1]),
-                abs(event_end - candidate_event[2]),
-                abs(event_start - candidate_event[0])
+                abs(event["peaktime"] - candidate_event[1]),
+                abs(event["endtime"] - candidate_event[2]),
+                abs(event["starttime"] - candidate_event[0])
             )
         )
 
         # Check peak time delta
-        if abs(event_peak - match_peak) > dt.timedelta(minutes=1):
+        if abs(event["peaktime"] - match_peak) > dt.timedelta(minutes=1):
             # Allow for 10 minute peak delta if start and end times are equal
-            if event_start != match_start \
-                    or event_end != match_end \
-                    or abs(event_peak - match_peak) > dt.timedelta(minutes=10):
+            if event["starttime"] != match_start \
+                    or event["endtime"] != match_end \
+                    or abs(event["peaktime"] - match_peak) > dt.timedelta(minutes=10):
                 still_unmapped_flares.append(event)
                 continue
 
         # Check if event peak is inside match duration
-        if not (match_start <= event_peak <= match_end):
+        if not (match_start <= event["peaktime"] <= match_end):
             still_unmapped_flares.append(event)
             continue
 
@@ -165,8 +166,8 @@ def active_region_time_ranges(
     # Create interval tree of unmapped ranges for fast lookup later on
     unmapped_ranges = intervaltree.IntervalTree()
     for event in unmapped_flares:
-        unmapped_start = util.hek_date(event["event_starttime"])
-        unmapped_end = util.hek_date(event["event_endtime"])
+        unmapped_start = event["starttime"]
+        unmapped_end = event["endtime"]
         unmapped_ranges.addi(unmapped_start, unmapped_end)
     unmapped_ranges.merge_overlaps()
 
@@ -174,7 +175,7 @@ def active_region_time_ranges(
     for noaa_id, (region_start, region_end, region_events) in noaa_regions.items():
         flares = list(sorted(
             (flare_event for flare_event, flare_region_id in flare_mapping if flare_region_id == noaa_id),
-            key=lambda flare_event: util.hek_date(flare_event["event_peaktime"])
+            key=lambda flare_event: flare_event["peaktime"]
         ))
 
         # Create initial free range (add 1 second to end because region_end is inclusive but intervaltree is exclusive)
@@ -184,7 +185,7 @@ def active_region_time_ranges(
         # Process each flare
         flare_ranges = intervaltree.IntervalTree()
         for idx, flare_event in enumerate(flares):
-            flare_peak = util.hek_date(flare_event["event_peaktime"])
+            flare_peak = flare_event["peaktime"]
             flare_class = flare_event["fl_goescls"]
 
             # Calculate best case range
@@ -192,31 +193,39 @@ def active_region_time_ranges(
             range_min = max(flare_peak - output_duration + dt.timedelta(seconds=1), region_start + input_duration)
             range_max = min(flare_peak + output_duration, region_end + dt.timedelta(seconds=1))
 
-            #TODO: Bigger flares check necessary with GOES profile check?
+            #TODO iff there's a bigger flare around (HEK), check with GOES curve for correct cuts.
+
+
+
 
             # Check if any bigger flares happen before
             prev_idx = idx - 1
-            while prev_idx >= 0 and util.hek_date(flares[prev_idx]["event_peaktime"]) >= range_min:
+            while prev_idx >= 0 and flares[prev_idx]["peaktime"] >= range_min:
                 # Check if check flare is bigger than current, if yes, reduce start range
                 if flares[prev_idx]["fl_goescls"] > flare_class:
                     # First datetime is the one just after the flare
-                    range_min = util.hek_date(flares[prev_idx]["event_peaktime"]) + dt.timedelta(seconds=1)
+                    range_min = flares[prev_idx]["peaktime"] + dt.timedelta(seconds=1)
                     break
                 else:
                     prev_idx -= 1
 
             # Check if any bigger flares happen afterwards
             next_idx = idx + 1
-            while next_idx < len(flares) and util.hek_date(flares[next_idx]["event_peaktime"]) < range_max:
+            while next_idx < len(flares) and flares[next_idx]["peaktime"] < range_max:
                 # Check if check flare is bigger than current, if yes, reduce end range
                 if flares[next_idx]["fl_goescls"] > flare_class:
                     # Last datetime (exclusive) is the larger flare
-                    range_max = util.hek_date(flares[next_idx]["event_peaktime"])
+                    range_max = flares[next_idx]["peaktime"]
                     break
                 else:
                     next_idx += 1
 
-            goes_profile = goes[range_min:range_max]
+            #TODO: Bigger flares check necessary with GOES profile check?
+
+            #TODO: Search the GOES curve to determine the range where this flare's peak flux is the highest
+            flare_start = flare_event["starttime"]
+            flare_end = flare_event["endtime"]
+            goes_profile = goes[(goes.index > range_min) & (goes.index <= range_max)]
             prof_around_peak = goes_profile[flare_peak - dt.timedelta(minutes=1):flare_peak + dt.timedelta(minutes=1)]
             max_around_peak = prof_around_peak.max(axis='A_FLUX')
 
