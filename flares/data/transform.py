@@ -490,11 +490,11 @@ def verify_sampling(
         training_samples: pd.DataFrame,
         input_duration: dt.timedelta,
         output_duration: dt.timedelta,
-        noaa_regions: Dict[int, Tuple[dt.datetime, dt.datetime, List[dict]]]
+        noaa_regions: Dict[int, Tuple[dt.datetime, dt.datetime, List[dict]]],
+        goes: pd.DataFrame
 ):
     # TODO: Check if active regions are actually not just the same with different numbers
 
-    # Check that active regions between test and training set are exclusive
     logger.info("Verifying that active regions in the test and training set are mutually exclusive")
     test_region_numbers = {row.noaa_num for _, row in test_samples.iterrows()}
     training_region_numbers = {row.noaa_num for _, row in training_samples.iterrows()}
@@ -503,20 +503,19 @@ def verify_sampling(
         f"Same active regions found in both test and training set: {region_number_intersection}"
 
     logger.info("Internally verifying test samples")
-    _verify_sampling_internal(test_samples, input_duration, output_duration, noaa_regions)
+    _verify_sampling_internal(test_samples, input_duration, output_duration, noaa_regions, goes)
 
     logger.info("Internally verifying training samples")
-    _verify_sampling_internal(training_samples, input_duration, output_duration, noaa_regions)
+    _verify_sampling_internal(training_samples, input_duration, output_duration, noaa_regions, goes)
 
 
 def _verify_sampling_internal(
         samples: pd.DataFrame,
         input_duration: dt.timedelta,
         output_duration: dt.timedelta,
-        noaa_regions: Dict[int, Tuple[dt.datetime, dt.datetime, List[dict]]]
+        noaa_regions: Dict[int, Tuple[dt.datetime, dt.datetime, List[dict]]],
+        goes: pd.DataFrame
 ):
-    # TODO: Verify peak flare is actually present
-
     logger.info("Verifying sample input duration")
     for sample_id, sample_values in samples.iterrows():
         assert sample_values.end - sample_values.start == input_duration, \
@@ -541,3 +540,12 @@ def _verify_sampling_internal(
 
         assert sample_values.end + output_duration <= region_end + dt.timedelta(seconds=1), \
             f"Sample {sample_id} output end {sample_values.end + output_duration} ends after the corresponding region end {region_end + dt.timedelta(seconds=1)}"
+
+    logger.info("Verifying that peak seems present in the GOES curve (GOES flux > peak_flux)")
+    for sample_id, sample_values in samples.iterrows():
+        if sample_values.peak_flux > 5e-9: # A is 1e-8
+            overlap_range = goes[(goes.index >= sample_values.peak - dt.timedelta(minutes=2)) & (goes.index <= sample_values.peak + dt.timedelta(minutes=2))]
+            if len(overlap_range) > 0:
+                maxGOES = overlap_range.max(axis="A_FLUX")
+                assert (maxGOES / sample_values.peak_flux) > 0.9, \
+                    f"Sample {sample_id} with output end {sample_values.end + output_duration} doesn't have its peak_flux represented in teh GOES curve"

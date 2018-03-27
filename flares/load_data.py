@@ -135,7 +135,7 @@ def transform_raw(
     with open(events_raw_path, "r") as f:
         raw_events = json.load(f)
 
-    print('Extracting events from raw...')
+    logger.info('Extracting events from raw...')
     swpc_flares, noaa_active_regions = extract_events(raw_events)
     logger.debug(
         "Extracted %d SWPC flares and %d (grouped) NOAA active regions", len(swpc_flares), len(noaa_active_regions)
@@ -207,7 +207,7 @@ def transform_raw(
         index_col=0,
         parse_dates=["start", "end", "peak"]
     )
-    verify_sampling(test_samples, training_samples, input_duration, output_duration, noaa_active_regions)
+    verify_sampling(test_samples, training_samples, input_duration, output_duration, noaa_active_regions, goes)
     logger.info("Sampling verified successfully")
 
 
