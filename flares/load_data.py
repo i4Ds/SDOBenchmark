@@ -10,6 +10,7 @@ import dateutil.parser
 import intervaltree
 import pandas as pd
 import simplejson as json
+from keras.preprocessing.image import ImageDataGenerator
 
 import flares.util as util
 from flares.data.extract import load_hek_data, load_goes_flux, goes_files, load_all_goes_profiles
@@ -31,8 +32,8 @@ logger = logging.getLogger(__name__)
 
 # TODO: Handle merging and splitting active regions for test/training split
 # TODO: Check if active regions overlap each other to avoid duplicates
-# TODO: Some active regions might still produce flares which are not detected by SWPC
-# TODO: How should the peak flux for non-flaring active regions be calculated?
+# : Some active regions might still produce flares which are not detected by SWPC
+# : How should the peak flux for non-flaring active regions be calculated?
 # TODO: What HMI data should be used?
 
 # TODO: SDO sensors collect less intensity over time, should this be incorporated?
@@ -143,6 +144,10 @@ def transform_raw(
 
     ranges_path = os.path.join(output_directory, f"ranges_{date_suffix}.csv")
 
+    # load GOES curves
+    logger.info('Loading GOES curves...')
+    goes = load_all_goes_profiles(os.path.join(input_directory, "goes"))
+
     if os.path.isfile(ranges_path):
         logger.info("Using existing ranges at %s", ranges_path)
     else:
@@ -153,10 +158,6 @@ def transform_raw(
             "Created flare mapping, resulting in %d mapped and %d unmapped flares",
             len(mapped_flares), len(unmapped_flares)
         )
-
-        # load GOES curves
-        logger.info('Loading GOES curves...')
-        goes = load_all_goes_profiles(os.path.join(input_directory, "goes"))
 
         ranges = active_region_time_ranges(
             input_duration, output_duration, noaa_active_regions, mapped_flares, unmapped_flares, goes
@@ -194,21 +195,22 @@ def transform_raw(
         training_samples.to_csv(samples_training_path, sep=";", index_label="id")
         logger.info("Sampled test/training sets")
 
-    logger.info("Verifying sampling")
-    test_samples = pd.read_csv(
-        samples_test_path,
-        delimiter=";",
-        index_col=0,
-        parse_dates=["start", "end", "peak"]
-    )
-    training_samples = pd.read_csv(
-        samples_training_path,
-        delimiter=";",
-        index_col=0,
-        parse_dates=["start", "end", "peak"]
-    )
-    verify_sampling(test_samples, training_samples, input_duration, output_duration, noaa_active_regions, goes)
-    logger.info("Sampling verified successfully")
+        logger.info("Verifying sampling")
+        test_samples = pd.read_csv(
+            samples_test_path,
+            delimiter=";",
+            index_col=0,
+            parse_dates=["start", "end", "peak"]
+        )
+        training_samples = pd.read_csv(
+            samples_training_path,
+            delimiter=";",
+            index_col=0,
+            parse_dates=["start", "end", "peak"]
+        )
+
+        verify_sampling(test_samples, training_samples, input_duration, output_duration, noaa_active_regions, goes)
+        logger.info("Sampling verified successfully")
 
 
 def create_output(

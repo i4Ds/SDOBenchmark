@@ -81,39 +81,19 @@ def load_goes_flux(date: dt.date) -> Optional[str]:
 
 
 def load_all_goes_profiles(goes_directory: str) -> pd.DataFrame:
-    return pd.concat([
-        _parse_goes_flux(os.path.join(goes_directory, current_file))
-        for current_file in os.listdir(goes_directory)
-        if os.path.exists(os.path.join(goes_directory, current_file)) and current_file.startswith("g15")
-    ])
-
-'''def goes_profile(start_datetime: dt.datetime, end_datetime: dt.datetime, goes_directory: str) -> Optional[pd.DataFrame]:
-    flist = [
-        _parse_goes_flux(os.path.join(goes_directory, current_file))
-        for (current_file, current_date) in goes_files(start_datetime, end_datetime) #os.listdir(goes_directory)
-        if os.path.exists(os.path.join(goes_directory, current_file))
-    ]
-    if len(flist) == 0:
-        return None
-    fluxes = pd.concat(flist)
-    fluxes = fluxes[start_datetime:end_datetime]
-    if len(fluxes) == 0:
-        return None
-    return fluxes
-
-def goes_profile_fromfile(start_datetime: dt.datetime, end_datetime: dt.datetime, goes_directory: str) -> Optional[pd.DataFrame]:
-    flist = [
-        _parse_goes_flux(os.path.join(goes_directory, current_file))
-        for (current_file, current_date) in goes_files(start_datetime, end_datetime) #os.listdir(goes_directory)
-        if os.path.exists(os.path.join(goes_directory, current_file))
-    ]
-    if len(flist) == 0:
-        return None
-    fluxes = pd.concat(flist)
-    fluxes = fluxes[start_datetime:end_datetime]
-    if len(fluxes) == 0:
-        return None
-    return fluxes'''
+    all_path = os.path.join(goes_directory, "goes_all.csv")
+    if os.path.isfile(all_path):
+        logger.info("Using existing GOES file at %s", all_path)
+        goes =  pd.read_csv(all_path, sep=",", parse_dates=["time_tag"], index_col="time_tag", usecols=["time_tag", "A_FLUX"])
+    else:
+        logger.info("GOES list not found, will be created at %s", all_path)
+        goes = pd.concat([
+            _parse_goes_flux(os.path.join(goes_directory, current_file))
+            for current_file in os.listdir(goes_directory)
+            if os.path.exists(os.path.join(goes_directory, current_file)) and current_file.startswith("g15")
+        ])
+        goes.to_csv(all_path, sep=",", index_label="time_tag")
+    return goes
 
 def _parse_goes_flux(file_path: str) -> pd.DataFrame:
     with open(file_path, "r") as f:
