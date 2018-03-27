@@ -572,8 +572,8 @@ def _verify_sampling_internal(
         assert sample_values.end + output_duration <= region_end + dt.timedelta(seconds=1), \
             f"Sample {sample_id} output end {sample_values.end + output_duration} ends after the corresponding region end {region_end + dt.timedelta(seconds=1)}"
 
-    logger.info("Verifying that peak seems present in the GOES curve (GOES flux > peak_flux)")
-
+    # Very slow. Max difference detected was 1 order of magnitude (i.e. 10x)
+    '''logger.info("Verifying that peak seems present in the GOES curve (GOES flux > peak_flux)")
     for sample_id, sample_values in samples.iterrows():
         if sample_values.peak_flux > 5e-9: # A is 1e-8
             print(sample_id)
@@ -583,4 +583,4 @@ def _verify_sampling_internal(
                 #assert (maxGOES / sample_values.peak_flux) > 0.85, \
                 #    f"Sample {sample_id} with output end {sample_values.end + output_duration} doesn't have its peak_flux represented in the GOES curve ({maxGOES:.4} vs {sample_values.peak_flux:.4})"
                 if (maxGOES / sample_values.peak_flux) > 0.85:
-                    logger.info(f"Sample {sample_id} with output end {sample_values.end + output_duration} doesn't have its peak_flux represented in the GOES curve ({maxGOES:.4} vs {sample_values.peak_flux:.4})")
+                    logger.info(f"Sample {sample_id} with output end {sample_values.end + output_duration} doesn't have its peak_flux represented in the GOES curve ({maxGOES:.4} vs {sample_values.peak_flux:.4})")'''

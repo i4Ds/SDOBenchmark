@@ -10,7 +10,6 @@ import dateutil.parser
 import intervaltree
 import pandas as pd
 import simplejson as json
-from keras.preprocessing.image import ImageDataGenerator
 
 import flares.util as util
 from flares.data.extract import load_hek_data, load_goes_flux, goes_files, load_all_goes_profiles
