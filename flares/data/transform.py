@@ -173,6 +173,27 @@ def active_region_time_ranges(
         unmapped_ranges.addi(unmapped_start, unmapped_end)
     unmapped_ranges.merge_overlaps()
 
+    # Create interval tree of mapped flares on the entire sun for fast lookup
+    mapped_flares_entire_sun = intervaltree.IntervalTree()
+    for flare_event, _ in flare_mapping:
+        mapped_flares_entire_sun.addi(flare_event["starttime"], flare_event["endtime"])
+    mapped_flares_entire_sun.merge_overlaps()
+
+    # Construct interval where GOES > 8e-9
+    goes_interval = intervaltree.IntervalTree()
+    prev_date = None
+    for date, flux in goes.itertuples():
+        if flux > 8e-9:
+            if prev_date is None:
+                prev_date = date
+        else:
+            if prev_date is not None:
+                goes_interval.addi(prev_date, date)
+                prev_date = None
+
+    # tree where GOES > 8e-9 but no (mapped) flares present
+    goes_noflare = goes_interval - mapped_flares_entire_sun
+
     total_free_count = 0
     total_free_sum = dt.timedelta(seconds=0)
 
@@ -246,6 +267,10 @@ def active_region_time_ranges(
 
             # Remove range around flare from free areas
             free_ranges.chop(flare_peak - output_duration + dt.timedelta(seconds=1), flare_peak + output_duration)
+
+
+        # Remove free ranges where GOES > 8e-9 but no flare happens on the entire sun
+        free_ranges -= goes_noflare
 
         # Merge free and flare ranges
         region_ranges = free_ranges | flare_ranges

@@ -266,7 +266,6 @@ def _create_output(
         os.makedirs(output_directory, exist_ok=False)
 
     # Create meta data file
-    # TODO: Remove unnecessary columns
     meta_file = os.path.join(output_directory, "meta_data.csv")
     samples.to_csv(meta_file, sep=";", index_label="id")
     logger.info("Wrote meta data file")
