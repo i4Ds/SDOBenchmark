@@ -79,7 +79,7 @@ def load_raw(output_directory: str, start: dt.datetime, end: dt.datetime):
 
     # GOES flux
     goes_raw_path = os.path.join(output_directory, "goes")
-    logger.info("Loading GOES flux to %s", goes_raw_path)
+    logger.info("Downloading GOES flux to %s ...", goes_raw_path)
 
     os.makedirs(goes_raw_path, exist_ok=True)
 
@@ -92,7 +92,7 @@ def load_raw(output_directory: str, start: dt.datetime, end: dt.datetime):
                 with open(target_file_path, "w") as f:
                     f.write(raw_flux_data)
 
-    logger.info("Loaded GOES flux")
+    logger.info("GOES flux files are ready")
 
     # HEK events
     events_raw_path = os.path.join(output_directory, f"events_{date_suffix}.json")
@@ -143,9 +143,8 @@ def transform_raw(
 
     ranges_path = os.path.join(output_directory, f"ranges_{date_suffix}.csv")
 
-    # load GOES curves
-    logger.info('Loading GOES curves...')
-    goes = load_all_goes_profiles(os.path.join(input_directory, "goes"))
+    # Loading goes curves on demand
+    goes = None
 
     if os.path.isfile(ranges_path):
         logger.info("Using existing ranges at %s", ranges_path)
@@ -157,6 +156,11 @@ def transform_raw(
             "Created flare mapping, resulting in %d mapped and %d unmapped flares",
             len(mapped_flares), len(unmapped_flares)
         )
+
+        if goes is None:
+            # load GOES curves
+            logger.info('Loading GOES curves...')
+            goes = load_all_goes_profiles(os.path.join(input_directory, "goes"))
 
         ranges = active_region_time_ranges(
             input_duration, output_duration, noaa_active_regions, mapped_flares, unmapped_flares, goes
@@ -207,6 +211,11 @@ def transform_raw(
             index_col=0,
             parse_dates=["start", "end", "peak"]
         )
+
+        if goes is None:
+            # load GOES curves
+            logger.info('Loading GOES curves...')
+            goes = load_all_goes_profiles(os.path.join(input_directory, "goes"))
 
         verify_sampling(test_samples, training_samples, input_duration, output_duration, noaa_active_regions, goes)
         logger.info("Sampling verified successfully")

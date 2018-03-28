@@ -397,8 +397,6 @@ def sample_ranges(
         else:
             stratified_regions[max_class[:2]].append(noaa_num)
 
-    # TODO: We want 12673 in the test set
-
     np.random.seed(seed)
 
     test_regions = set()
@@ -406,19 +404,23 @@ def sample_ranges(
 
     # Sample flare regions
     for current_max_class, current_active_regions in sorted(stratified_regions.items(), reverse=True):
-        target_indices = []
+        target_indices = np.array([])
 
         if current_max_class == "free":
             continue
 
         if len(current_active_regions) < 6:
-            # Take one active region with 50% probability
+            # Take one active region with 50% probability into the test set
             if np.random.rand() < 0.5:
                 target_indices = np.random.choice(len(current_active_regions), (1,))
         else:
             # Take a number of active regions
             num_region_samples = 3
             target_indices = np.random.choice(len(current_active_regions), num_region_samples)
+
+        # Special case 12673: We want the September flare to be part of the test set
+        if 12673 in current_active_regions and 12673 not in target_indices:
+            np.append(target_indices, 12673)
 
         for idx, current_region in enumerate(current_active_regions):
             if idx in target_indices:
