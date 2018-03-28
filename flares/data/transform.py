@@ -486,7 +486,7 @@ def _sample_ranges(
         range_samples = np.random.randint(min_samples, max_samples + 1)
 
         input_start = range_values.start - input_duration
-        total_offset = range_values.end - output_duration \
+        total_offset = range_values.end - range_values.start - output_duration \
                              - range_samples * input_duration
         # split total offset sum into range_samples pieces
         offset_splits = np.random.uniform(size=(range_samples-1))
