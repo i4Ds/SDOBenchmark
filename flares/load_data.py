@@ -193,7 +193,7 @@ def transform_raw(
             output_duration,
             seed
         )
-        # TODO: Document: id is range id + sample index, can be used to filter samples from same ranges
+        # id for each sample is range id + sample index, can be used to filter samples from same ranges
         test_samples.to_csv(samples_test_path, sep=";", index_label="id")
         training_samples.to_csv(samples_training_path, sep=";", index_label="id")
         logger.info("Sampled test/training sets")

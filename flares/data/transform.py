@@ -476,44 +476,33 @@ def _sample_ranges(
     samples = pd.DataFrame(columns=ranges.columns)
 
     for range_id, range_values in ranges.iterrows():
+        # Maximum number of samples so that no input ranges overlap
         max_samples = 1 + (range_values.end - range_values.start - output_duration) // input_duration
         if range_values.type != "free" and range_values.type >= "M" and max_samples > 1:
             # Use at least two samples for M+ flares (if possible)
             min_samples = 2
         else:
             min_samples = 1
-        current_samples = np.random.randint(min_samples, max_samples + 1)
+        range_samples = np.random.randint(min_samples, max_samples + 1)
 
-        current_min_offset = range_values["start"] - input_duration
-        for sample_idx in range(current_samples):
-            # TODO: I think this is statistically not correct
+        input_start = range_values.start - input_duration
+        total_offset = range_values.end - output_duration \
+                             - range_samples * input_duration
+        # split total offset sum into range_samples pieces
+        offset_splits = np.random.uniform(size=(range_samples-1))
+        offset_splits = offset_splits / np.sum(offset_splits) * total_offset
 
-            # Calculate maximum offset (inclusive!)
-            current_max_offset = range_values.end - output_duration - input_duration \
-                                 - (current_samples - sample_idx - 1) * input_duration
-            assert range_values.start - input_duration <= current_min_offset <= current_max_offset
-            assert current_max_offset <= range_values.end - input_duration - output_duration
-
-            # Use random offset in range
-            current_end_offset = current_max_offset + dt.timedelta(seconds=1)
-            current_offset_range = (current_end_offset - current_min_offset) // dt.timedelta(seconds=1)
-            assert current_offset_range > 0
-            current_offset_seconds = np.random.randint(0, current_offset_range)
-            current_offset = current_min_offset + dt.timedelta(seconds=current_offset_seconds)
-            assert range_values.start - input_duration <= current_offset <= current_max_offset < current_end_offset
-
+        for sample_idx in range(range_samples):
             sample_id = f"{range_id}_{sample_idx}"
+            offset = np.sum(offset_splits[:sample_idx])
             samples.loc[sample_id] = (
                 range_values["noaa_num"],
-                current_offset,
-                current_offset + input_duration,
+                input_start + offset,
+                input_start + offset + input_duration,
                 range_values.type,
                 range_values.peak,
                 range_values.peak_flux
             )
-
-            # Update min offset
-            current_min_offset = current_offset + input_duration
 
     return samples
 
