@@ -15,7 +15,7 @@ from matplotlib.cm import get_cmap
 from sunpy.map import Map
 from sunpy.instr.aia import aiaprep
 
-import aia_lib.sun_intensity
+from aia_lib import sun_intensity
 
 from PIL import Image
 from PIL import ImageFont
@@ -68,7 +68,7 @@ def process_img(themap, fname=None, downscale=None,
     #hdr = sun_intensity.getFitsHdr(fits_file)
     #wavelength = str(hdr['wavelnth'])
     #exptime = hdr['EXPTIME']
-    wavelength = themap.meta["wavelnth"]
+    wavelength = str(themap.meta["wavelnth"])
     exptime = themap.meta["EXPTIME"]
     cmap = get_cmap('sdoaia' + wavelength)
     cmap.set_bad()
