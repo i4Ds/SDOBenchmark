@@ -277,7 +277,8 @@ def _create_output(
 
     # Create meta data file
     meta_file = os.path.join(output_directory, "meta_data.csv")
-    samples.to_csv(meta_file, sep=";", index_label="id")
+    # put only id, start, end and peak_flux into csv. Discard noaa_num, type and peak
+    samples[['start','end','peak_flux']].to_csv(meta_file, sep=";", index_label="id")
     logger.info("Wrote meta data file")
 
     _create_image_output(samples, output_directory, email_address, cadence_hours, noaa_regions)
@@ -299,11 +300,11 @@ def _create_image_output(
     ]
     logger.debug("%d samples will be created", len(target_samples))
 
-    p = 32 #8
+    p = 64
 
     # Create pools for different download steps
     # TODO: processes, has to be fixed to avoid too many requests
-    with multiprocessing.Pool(processes=p) as request_pool, \
+    with multiprocessing.Pool(processes=4) as request_pool, \
             multiprocessing.Pool(processes=p) as download_pool, \
             multiprocessing.Pool(processes=p) as process_pool, \
             multiprocessing.Manager() as manager:
@@ -324,8 +325,7 @@ def _create_image_output(
 
         # Map inputs to finally start full process
         logger.debug("Starting requests")
-        # TODO: Map full list
-        request_pool.map(request_sender, target_samples[:10])
+        request_pool.map(request_sender, target_samples[:10]) #target_samples[:10]
         logger.debug("Finished requests")
 
         # Wait for image loader workers to finish

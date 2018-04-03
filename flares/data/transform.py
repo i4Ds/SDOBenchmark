@@ -494,11 +494,11 @@ def _sample_ranges(
 
         for sample_idx in range(range_samples):
             sample_id = f"{range_id}_{sample_idx}"
-            offset = np.sum(offset_splits[:sample_idx])
+            s = input_start + np.sum(offset_splits[:sample_idx]) + input_duration * sample_idx
             samples.loc[sample_id] = (
                 range_values["noaa_num"],
-                input_start + offset,
-                input_start + offset + input_duration,
+                s,
+                s + input_duration,
                 range_values.type,
                 range_values.peak,
                 range_values.peak_flux
