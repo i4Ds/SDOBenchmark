@@ -1,9 +1,9 @@
 """Module for finding the brightness values for AIA images using the date
 """
 #a change
-import mov_img
+import aia_lib.mov_img
 from datetime import datetime, timedelta
-from fetcher import fetch
+from aia_lib.fetcher import fetch
 from astropy.io import fits
 from sunpy.map import Map
 from sunpy.instr.aia import aiaprep

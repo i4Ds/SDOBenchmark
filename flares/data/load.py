@@ -158,6 +158,8 @@ class ImageLoader(object):
                     else:
                         logger.info(f'{15-retries} retries')
                         break
+            else:
+                logger.info(f'Already found {fp}')
 
         logger.info("Downloaded %d files to %s", len(records), fits_directory)
 

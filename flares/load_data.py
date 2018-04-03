@@ -27,7 +27,7 @@ DEFAULT_ARGS = {
 
 logger = logging.getLogger(__name__)
 
-# TODO: Make sure sampling makes actual sense
+# : Make sure sampling makes actual sense
 
 # TODO: Handle merging and splitting active regions for test/training split
 # TODO: Check if active regions overlap each other to avoid duplicates
@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
 # : How should the peak flux for non-flaring active regions be calculated?
 # TODO: What HMI data should be used?
 
-# TODO: SDO sensors collect less intensity over time, should this be incorporated?
+# : SDO sensors collect less intensity over time, should this be incorporated?
 
 
 def main():
@@ -303,7 +303,6 @@ def _create_image_output(
     p = 64
 
     # Create pools for different download steps
-    # TODO: processes, has to be fixed to avoid too many requests
     with multiprocessing.Pool(processes=4) as request_pool, \
             multiprocessing.Pool(processes=p) as download_pool, \
             multiprocessing.Pool(processes=p) as process_pool, \

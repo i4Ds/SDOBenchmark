@@ -15,7 +15,7 @@ from matplotlib.cm import get_cmap
 from sunpy.map import Map
 from sunpy.instr.aia import aiaprep
 
-import sun_intensity
+import aia_lib.sun_intensity
 
 from PIL import Image
 from PIL import ImageFont
@@ -63,7 +63,7 @@ def process_img(themap, fname=None, downscale=None,
         applied early on, just after aiaprep
     """
 
-    # CHANGED BY ROMAN BOLZERN TO DIRECTLY USE MAPS
+    # CHANGED BY ROMAN BOLZERN (FHNW I4DS) TO DIRECTLY USE MAPS
 
     #hdr = sun_intensity.getFitsHdr(fits_file)
     #wavelength = str(hdr['wavelnth'])
