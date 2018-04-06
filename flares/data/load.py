@@ -5,13 +5,16 @@ import os
 import re
 import shutil
 import urllib.request
+from urllib.request import URLError
 from typing import Tuple, List, Dict
 import time
+import math
 
 import astropy.coordinates
 import astropy.time
 import astropy.units as u
 import drms
+from drms import DrmsExportError
 import numpy as np
 import pandas as pd
 import sunpy.coordinates
@@ -50,17 +53,23 @@ class RequestSender(object):
         sample_id, sample_values = sample_input
         logger.debug("Requesting data for sample %s", sample_id)
 
-        retries = 15
-        while retries > 0:
+        retries = 0
+        while True:
             try:
                 # Perform request and provide URLs as result
                 request_urls = self._perform_request(sample_id, sample_values.start, sample_values.end)
             except Exception as e:
-                retries -= 1
-                logger.info("Error fetching URLs for sample %s : %s", sample_id, e)
-                time.sleep(0.5 * (15 - retries))
+                retries += 1
+                #logger.info("Error fetching URLs for sample %s : %s", sample_id, e)
+                if retries % 15 == 0:
+                    logger.warning(f'Failed fetching URLs for sample %s after {retries} retries: %s', sample_id, e)
+                    if isinstance(e, URLError) and isinstance(e.reason, ConnectionRefusedError):
+                        logger.info('waiting for a while longer...')
+                    else:
+                        break
+                time.sleep(0.5)
             else:
-                logger.info(f'received URLs for {sample_id} after {15-retries} retries')
+                logger.info(f'received URLs for {sample_id} after {retries} retries')
                 self._output_queue.put((sample_id, request_urls))
                 break
 
@@ -82,11 +91,9 @@ class RequestSender(object):
                 logger.info("As-is data not available for sample %s, created request %s", sample_id, request.id)
                 request.wait()
 
-            # If the request failed, an exception will be thrown at this point
-            for _, url_row in request.urls.iterrows():
-                urls.append((url_row.record, url_row.url))
-
-            assert request.status == 0
+            if request.status != 4: # Empty set
+                for _, url_row in request.urls.iterrows():
+                    urls.append((url_row.record, url_row.url))
 
         return urls
 
@@ -130,7 +137,7 @@ class ImageLoader(object):
 
     def _download_images(self, sample_directory: str, records: List[Tuple[str, str]]):
         fits_directory = os.path.join(sample_directory, "_fits_temp")
-        os.makedirs(fits_directory)
+        os.makedirs(fits_directory, exist_ok=True)
 
         logger.info(f'Downloading {len(records)} FITS files into {fits_directory}...')
 
@@ -147,36 +154,85 @@ class ImageLoader(object):
             output_file_name = f"{record_date:%Y-%m-%dT%H%M%S}_{record_wavelength}.fits"
             fp = os.path.join(fits_directory, output_file_name)
             if not os.path.isfile(fp): #TODO: Check for corruption, incomplete files
-                retries = 15
-                while retries > 0:
+                retries = 0
+                while True:
                     try:
                         urllib.request.urlretrieve(url, os.path.join(fits_directory, output_file_name))
                     except Exception as e:
-                        retries -= 1
-                        logger.info("Error fetching FITS %s : %s", url, e)
-                        time.sleep(0.5 * (15 - retries))
+                        retries += 1
+                        #logger.info("Error fetching FITS %s : %s", url, e)
+                        if retries % 15 == 0:
+                            logger.warning(f'Failed fetching FITS %s after {retries} retries: %s', url, e)
+                            if isinstance(e, URLError) and isinstance(e.reason, ConnectionRefusedError):
+                                logger.info('waiting for a while longer...')
+                            else:
+                                break
+                        time.sleep(0.5)
                     else:
-                        logger.info(f'{15-retries} retries')
+                        logger.info(f'{retries} retries')
                         break
             else:
-                logger.info(f'Already found {fp}')
+                logger.debug(f'Already found {fp}')
 
         logger.info("Downloaded %d files to %s", len(records), fits_directory)
 
 
 class OutputProcessor(object):
-    IMAGE_TYPES = (
-        "94",
-        "131",
-        "171",
-        "193",
-        "211",
-        "304",
-        "335",
-        "1600",
-        "1700",
-        "4500"
-    )
+    # see _FITS_to_image
+    IMAGE_PARAMS = {
+        "94": {
+            'dataMin': 0.1,
+            'dataMax': 30,
+            'dataScalingType': 3 # 0 - linear, 1 - sqrt, 3 - log10
+        },
+        "131": {
+            'dataMin': 0.7,
+            'dataMax': 500,
+            'dataScalingType': 3 # 0 - linear, 1 - sqrt, 3 - log10
+        },
+        "171": {
+            'dataMin': 1,
+            'dataMax': 1600,
+            'dataScalingType': 3 # 0 - linear, 1 - sqrt, 3 - log10
+        },
+        "193": {
+            'dataMin': 20,
+            'dataMax': 2500,
+            'dataScalingType': 3 # 0 - linear, 1 - sqrt, 3 - log10
+        },
+        "211": {
+            'dataMin': 7,
+            'dataMax': 1500,
+            'dataScalingType': 3 # 0 - linear, 1 - sqrt, 3 - log10
+        },
+        "304": {
+            'dataMin': 0.8,
+            'dataMax': 250,
+            'dataScalingType': 3 # 0 - linear, 1 - sqrt, 3 - log10
+        },
+        "335": {
+            'dataMin': 0.4,
+            'dataMax': 80,
+            'dataScalingType': 3 # 0 - linear, 1 - sqrt, 3 - log10
+        },
+        "1600": {
+            'dataMin': 10,
+            'dataMax': 400,
+            'dataScalingType': 3 # 0 - linear, 1 - sqrt, 3 - log10
+        },
+        "1700": {
+            'dataMin': 220,
+            'dataMax': 5000,
+            'dataScalingType': 3 # 0 - linear, 1 - sqrt, 3 - log10
+        },
+        "4500": {
+            'dataMin': 4000,
+            'dataMax': 20000,
+            'dataScalingType': 3 # 0 - linear, 1 - sqrt, 3 - log10
+        }
+    }
+
+
 
     OUTPUT_SHAPE = (512, 512)
 
@@ -238,7 +294,7 @@ class OutputProcessor(object):
 
         # Create a list of available times per wavelength
         # TODO: This ignores HMI
-        available_times = {wavelength: [] for wavelength in self.IMAGE_TYPES}
+        available_times = {wavelength: [] for wavelength in self.IMAGE_PARAMS.keys()}
         for current_file in os.listdir(input_directory):
             current_datetime_raw, current_wavelength = os.path.splitext(current_file)[0].split("_")
             current_datetime = dt.datetime.strptime(current_datetime_raw, "%Y-%m-%dT%H%M%S")
@@ -266,21 +322,21 @@ class OutputProcessor(object):
 
             # Process each wavelength
             for current_wavelength, current_file in current_images.items():
-                current_map: sunpy.map.sources.AIAMap = sunpy.map.Map(os.path.join(input_directory, current_file))
+                try:
+                    current_map: sunpy.map.sources.AIAMap = sunpy.map.Map(os.path.join(input_directory, current_file))
+                except Exception as e:
+                    logger.warning(f"Unable to load file {os.path.join(input_directory, current_file)}, skipping...")
+                    continue
+                #TODO: Cannot open resource
 
                 # Check if map is usable
                 if not self._is_usable(current_map):
                     logger.warning("Discarding wavelength %s for sample %s", current_wavelength, sample_id)
                     continue
 
-                # create the image
-                current_img = aia_mov_img.process_img(current_map)
-                assert current_map.data.shape[0] == current_img.shape[0]
-                assert current_map.data.shape[1] == current_img.shape[1]
-
                 # Convert to level 1.5
-                #assert current_map.processing_level == 1.0
-                #current_map = sunpy.instr.aia.aiaprep(current_map)
+                if current_map.processing_level != 1.5:
+                    current_map = sunpy.instr.aia.aiaprep(current_map)
 
                 # Find coordinates of closest active region event which started before the image
                 image_time = current_map.date
@@ -311,27 +367,27 @@ class OutputProcessor(object):
                 # Sunpy maps assume a carthesian coordinate system which is already incorporated in the pixel conversion
                 patch_start_y = center_y - self.OUTPUT_SHAPE[0] // 2
                 patch_start_x = center_x - self.OUTPUT_SHAPE[1] // 2
-                current_patch = current_img[
+                img = current_map.data[
                     patch_start_y:patch_start_y + self.OUTPUT_SHAPE[0],
                     patch_start_x:patch_start_x + self.OUTPUT_SHAPE[1],
                 ]
-                assert current_patch.shape == self.OUTPUT_SHAPE
+                assert img.shape == self.OUTPUT_SHAPE
 
-                # TODO: Convert back to int16? (results in way better compression)
+                # Image processing steps
+                img = self._FITS_to_image(img, current_map)
 
                 # Save patch
                 #output_arrays[current_wavelength] = current_patch
 
                 # what happens when converting to other formats?
-                patch_16bitint = (np.round(current_patch)).astype(np.int16)
-                #logger.info(f'Total diff int16={np.sum(np.abs(patch_16bitint - current_patch))}')
-                #logger.info(f'Max diff int16={np.amax(np.abs(patch_16bitint - current_patch))}')
+                patch_16bitint = (np.round(img * 32767)).astype(np.int16)
+                #logger.info(f'Total diff int16={np.sum(np.abs(patch_16bitint - img))}')
+                #logger.info(f'Max diff int16={np.amax(np.abs(patch_16bitint - img))}')
 
                 # Save as image
                 output_file_path = os.path.join(output_directory, current_datetime.strftime("%Y-%m-%dT%H%M%S") + "__" + str(current_wavelength))
                 im = Image.fromarray(patch_16bitint)
                 im.save(output_file_path, "PNG")
-
 
             # Save patches as compressed numpy file
             #output_file_path = os.path.join(output_directory, current_datetime.strftime("%Y-%m-%dT%H%M%S"))
@@ -348,3 +404,31 @@ class OutputProcessor(object):
             and target.meta["ACS_ECLP"] != "YES" \
             and target.meta["ACS_SUNP"] == "YES" \
             and target.meta["QUALITY"] & (1 << 18) == 0  # Calibration flag
+
+    def _FITS_to_image(self, img: np.ndarray, current_map: sunpy.map.sources.AIAMap):
+        'Returns 2d array in [0,1] range'
+        # Templates:
+        # http://www.heliodocs.com/php/xdoc_print.php?file=$SSW/sdo/aia/idl/pubrel/aia_intscale.pro
+        # https://github.com/Helioviewer-Project/jp2gen/blob/master/idl/sdo/aia/hv_aia_list2jp2_gs2.pro
+        # Actually, decided to go with own visualization.
+        # TODO Recalculate the FITS header CRPIX values if need be
+        img = np.flipud(img)
+        img = img / current_map.meta["EXPTIME"] #  normalize for exposure
+        wavelength = str(current_map.meta["wavelnth"])
+        pms = self.IMAGE_PARAMS[wavelength]
+        '''if wavelength == '171':
+            img = img - 5
+            img[img < 0.1] = 0.1
+            img = np.clip(np.sqrt(img),1,40)
+        else:'''
+        img = np.clip(img, pms['dataMin'], pms['dataMax'])
+        if pms['dataScalingType'] == 1:
+            img = np.sqrt(img)
+            # normalize to [0,1]
+            img = (img - math.sqrt(pms['dataMin'])) / math.sqrt(pms['dataMax'] - pms['dataMin'])
+        elif pms['dataScalingType'] == 3:
+            img = np.log10(img)
+            # normalize to [0,1]
+            img = (img - math.log10(pms['dataMin'])) / math.log10(pms['dataMax'] - pms['dataMin'])
+
+        return img

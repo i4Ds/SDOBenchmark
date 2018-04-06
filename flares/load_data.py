@@ -296,7 +296,7 @@ def _create_image_output(
     target_samples = [
         (sample_id, sample_values)
         for sample_id, sample_values in samples.iterrows()
-        if not os.path.isdir(sample_path(sample_id, output_directory))
+        #if not os.path.isdir(sample_path(sample_id, output_directory)) # TODO: Is that so..?
     ]
     logger.debug("%d samples will be created", len(target_samples))
 
@@ -324,7 +324,7 @@ def _create_image_output(
 
         # Map inputs to finally start full process
         logger.debug("Starting requests")
-        request_pool.map(request_sender, target_samples[:10]) #target_samples[:10]
+        request_pool.map(request_sender, target_samples) #target_samples[:10]
         logger.debug("Finished requests")
 
         # Wait for image loader workers to finish
