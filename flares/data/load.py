@@ -102,10 +102,17 @@ class ImageLoader(object):
     RECORD_PARSE_REGEX = re.compile(r"^.+\[(.+)\]\[(.+)\].+$")
     RECORD_DATE_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
 
-    def __init__(self, input_queue: multiprocessing.Queue, output_queue: multiprocessing.Queue, output_directory: str):
+    def __init__(
+            self,
+            input_queue: multiprocessing.Queue,
+            output_queue: multiprocessing.Queue,
+            output_directory: str,
+            fits_directory: str
+    ):
         self._input_queue = input_queue
         self._output_queue = output_queue
         self._output_directory = output_directory
+        self._fits_directory = fits_directory
 
     def __call__(self, *args, **kwargs):
         logging.debug("Image loader started")
@@ -120,10 +127,10 @@ class ImageLoader(object):
             sample_id, records = current_input
             logger.debug("Downloading images of sample %s", sample_id)
 
-            sample_directory = sample_path(sample_id, self._output_directory)
+            fits_directory = sample_path(sample_id, self._fits_directory)
             try:
                 # Download image
-                self._download_images(sample_directory, records)
+                self._download_images(fits_directory, records)
 
                 # Enqueue next work item
                 self._output_queue.put(sample_id)
@@ -135,8 +142,8 @@ class ImageLoader(object):
                 # TODO: Just delete this 1 input data, not the entire fits folder...
                 #shutil.rmtree(sample_directory, ignore_errors=True)
 
-    def _download_images(self, sample_directory: str, records: List[Tuple[str, str]]):
-        fits_directory = os.path.join(sample_directory, "_fits_temp")
+    def _download_images(self, fits_directory: str, records: List[Tuple[str, str]]):
+        fits_directory = os.path.join(fits_directory, "_fits_temp")
         os.makedirs(fits_directory, exist_ok=True)
 
         logger.info(f'Downloading {len(records)} FITS files into {fits_directory}...')
@@ -240,12 +247,14 @@ class OutputProcessor(object):
             self,
             input_queue: multiprocessing.Queue,
             output_directory: str,
+            fits_directory: str,
             meta_data: pd.DataFrame,
             noaa_regions: Dict[int, Tuple[dt.datetime, dt.datetime, List[dict]]],
             cadence_hours: int
     ):
         self._input_queue = input_queue
         self._output_directory = output_directory
+        self._fits_directory = fits_directory
         self._meta_data = meta_data
         self._noaa_regions = noaa_regions
         self._cadence_hours = cadence_hours
@@ -263,7 +272,7 @@ class OutputProcessor(object):
             logger.debug("Processing sample %s", sample_id)
 
             sample_directory = sample_path(sample_id, self._output_directory)
-            fits_directory = os.path.join(sample_directory, "_fits_temp")
+            fits_directory = os.path.join(sample_path(sample_id, self._fits_directory), "_fits_temp")
 
             try:
                 # Process output

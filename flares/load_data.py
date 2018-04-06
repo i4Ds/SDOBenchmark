@@ -44,7 +44,7 @@ def main():
     log_level = logging.DEBUG if args.debug else logging.INFO
     util.configure_logging(log_level)
 
-    path_helper = util.PathHelper(args.directory)
+    path_helper = util.PathHelper(args.directory, args.fitsdir)
 
     # Data loading
     load_raw(path_helper.raw_directory, args.start, args.end)
@@ -232,6 +232,8 @@ def create_output(
     # Create directories
     test_directory = os.path.join(path_helper.output_directory, date_suffix, "test")
     training_directory = os.path.join(path_helper.output_directory, date_suffix, "training")
+    test_fits_directory = os.path.join(path_helper.fits_directory, date_suffix, "test")
+    training_fits_directory = os.path.join(path_helper.fits_directory, date_suffix, "training")
 
     # Load sample data
     logger.debug("Loading sample data from csv")
@@ -258,15 +260,16 @@ def create_output(
     _, noaa_active_regions = extract_events(raw_events)
 
     logger.info("Creating test samples")
-    _create_output(test_samples, test_directory, email_address, cadence_hours, noaa_active_regions)
+    _create_output(test_samples, test_directory, test_fits_directory, email_address, cadence_hours, noaa_active_regions)
 
     logger.info("Creating training samples")
-    _create_output(training_samples, training_directory, email_address, cadence_hours, noaa_active_regions)
+    _create_output(training_samples, training_directory, training_fits_directory, email_address, cadence_hours, noaa_active_regions)
 
 
 def _create_output(
         samples: pd.DataFrame,
         output_directory: str,
+        fits_directory: str,
         email_address: str,
         cadence_hours: int,
         noaa_regions: Dict[int, Tuple[dt.datetime, dt.datetime, List[dict]]]
@@ -274,6 +277,7 @@ def _create_output(
     if not os.path.isdir(output_directory):
         logger.debug("Creating output directory %s", output_directory)
         os.makedirs(output_directory, exist_ok=False)
+        os.makedirs(fits_directory, exist_ok=True)
 
     # Create meta data file
     meta_file = os.path.join(output_directory, "meta_data.csv")
@@ -281,13 +285,14 @@ def _create_output(
     samples[['start','end','peak_flux']].to_csv(meta_file, sep=";", index_label="id")
     logger.info("Wrote meta data file")
 
-    _create_image_output(samples, output_directory, email_address, cadence_hours, noaa_regions)
+    _create_image_output(samples, output_directory, fits_directory, email_address, cadence_hours, noaa_regions)
     logger.info("Wrote samples")
 
 
 def _create_image_output(
         samples: pd.DataFrame,
         output_directory: str,
+        fits_directory: str,
         email_address: str,
         cadence_hours: int,
         noaa_regions: Dict[int, Tuple[dt.datetime, dt.datetime, List[dict]]]
@@ -313,8 +318,8 @@ def _create_image_output(
 
         # Create workers
         request_sender = RequestSender(download_queue, email_address, cadence_hours)
-        image_loader = ImageLoader(download_queue, processing_queue, output_directory)
-        output_processor = OutputProcessor(processing_queue, output_directory, samples, noaa_regions, cadence_hours)
+        image_loader = ImageLoader(download_queue, processing_queue, output_directory, fits_directory)
+        output_processor = OutputProcessor(processing_queue, output_directory, fits_directory, samples, noaa_regions, cadence_hours)
 
         # Start workers
         logger.debug("Starting output processor workers")
@@ -388,6 +393,9 @@ def parse_args():
     )
     parser.add_argument(
         "email", help="Registered JSOC email address for image download"
+    )
+    parser.add_argument(
+        "--fitsdir", help="Output directory for FITS files. Optionally different than 'directory'."
     )
     parser.add_argument(
         "--start", default=DEFAULT_ARGS["start"], type=dateutil.parser.parse, help="First date and time (inclusive)"
