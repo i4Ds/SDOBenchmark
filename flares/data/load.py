@@ -332,10 +332,12 @@ class OutputProcessor(object):
 
             # Process each wavelength
             for current_wavelength, current_file in current_images.items():
+                fits_file = os.path.join(input_directory, current_file)
                 try:
-                    current_map: sunpy.map.sources.AIAMap = sunpy.map.Map(os.path.join(input_directory, current_file))
+                    current_map: sunpy.map.sources.AIAMap = sunpy.map.Map(fits_file)
                 except Exception as e:
-                    logger.error(f"Unable to load file {os.path.join(input_directory, current_file)}, skipping...")
+                    logger.error(f"Unable to load file {fits_file}, removing & skipping...")
+                    os.remove(fits_file)
                     continue
 
                 # Check if map is usable
