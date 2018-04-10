@@ -1,13 +1,17 @@
 import datetime as dt
 import logging
 import os
-from typing import Iterable
+from typing import Iterable, Optional
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3 import Retry
 
 HEK_DATE_FORMAT = "%Y-%m-%dT%H:%M:%S"
 
+CHANNELS = {'94': 8, '131': 9, '171': 10, '193': 11,
+            '211': 12, '304': 13, '335': 14,
+            '1600': 15, '1700': 16, '4500': 17,
+            'continuum': 18, 'magnetogram': 19} #HMI
 
 def configure_logging(level=logging.INFO):
     logging.basicConfig(
@@ -18,13 +22,14 @@ def configure_logging(level=logging.INFO):
 
 
 class PathHelper(object):
-    def __init__(self, data_directory: str):
+    def __init__(self, data_directory: str, fits_directory: Optional[str]):
         """
         Create a new path helper from the given data directory.
         The root data directory will be expanded and converted into an absolute path.
         :param data_directory: Data root directory
         """
         self._data_directory = os.path.abspath(os.path.expanduser(data_directory))
+        self._fits_directory = os.path.abspath(os.path.expanduser(fits_directory)) if fits_directory else None
 
     @property
     def data_directory(self):
@@ -41,6 +46,10 @@ class PathHelper(object):
     @property
     def output_directory(self):
         return os.path.join(self._data_directory, "output")
+
+    @property
+    def fits_directory(self):
+        return os.path.join(self._fits_directory if self._fits_directory is not None else self._data_directory, "output")
 
 
 def date_range(start_datetime: dt.datetime, end_datetime: dt.datetime) -> Iterable[dt.date]:

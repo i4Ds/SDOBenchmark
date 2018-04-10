@@ -9,6 +9,7 @@ from urllib.request import URLError
 from typing import Tuple, List, Dict
 import time
 import math
+import warnings
 
 import astropy.coordinates
 import astropy.time
@@ -62,9 +63,9 @@ class RequestSender(object):
                 retries += 1
                 #logger.info("Error fetching URLs for sample %s : %s", sample_id, e)
                 if retries % 15 == 0:
-                    logger.warning(f'Failed fetching URLs for sample %s after {retries} retries: %s', sample_id, e)
+                    logger.debug(f'Failed fetching URLs for sample %s after {retries} retries: %s', sample_id, e)
                     if isinstance(e, URLError) and isinstance(e.reason, ConnectionRefusedError):
-                        logger.info('waiting for a while longer...')
+                        logger.debug('waiting for a while longer...')
                     else:
                         break
                 time.sleep(0.5)
@@ -88,7 +89,7 @@ class RequestSender(object):
         for request in requests:
             if request.id is not None:
                 # Actual request had to be made, wait for result
-                logger.info("As-is data not available for sample %s, created request %s", sample_id, request.id)
+                logger.debug("As-is data not available for sample %s, created request %s", sample_id, request.id)
                 request.wait()
 
             if request.status != 4: # Empty set
@@ -115,10 +116,10 @@ class ImageLoader(object):
         self._fits_directory = fits_directory
 
     def __call__(self, *args, **kwargs):
-        logging.debug("Image loader started")
+        logger.debug("Image loader started")
         while True:
             current_input = self._input_queue.get()
-            logging.info(f'Remaining URL sets in queue: {self._input_queue.qsize()}')
+            logger.debug(f'Remaining URL sets in queue: {self._input_queue.qsize()}')
 
             # Check if done
             if current_input is None:
@@ -146,7 +147,7 @@ class ImageLoader(object):
         fits_directory = os.path.join(fits_directory, "_fits_temp")
         os.makedirs(fits_directory, exist_ok=True)
 
-        logger.info(f'Downloading {len(records)} FITS files into {fits_directory}...')
+        logger.debug(f'Downloading {len(records)} FITS files into {fits_directory}...')
 
         for record, url in records:
             # TODO: This does not work with HMI
@@ -181,7 +182,7 @@ class ImageLoader(object):
             else:
                 logger.debug(f'Already found {fp}')
 
-        logger.info("Downloaded %d files to %s", len(records), fits_directory)
+        logger.debug("Downloaded %d files to %s", len(records), fits_directory)
 
 
 class OutputProcessor(object):
@@ -260,10 +261,10 @@ class OutputProcessor(object):
         self._cadence_hours = cadence_hours
 
     def __call__(self, *args, **kwargs):
-        logging.debug("Output processor started")
+        logger.debug("Output processor started")
         while True:
             sample_id = self._input_queue.get()
-            logging.info(f'Remaining URL sets in queue: {self._input_queue.qsize()}')
+            logger.info(f'Remaining URL sets in queue: {self._input_queue.qsize()}')
 
             # Check if done
             if sample_id is None:
@@ -334,9 +335,8 @@ class OutputProcessor(object):
                 try:
                     current_map: sunpy.map.sources.AIAMap = sunpy.map.Map(os.path.join(input_directory, current_file))
                 except Exception as e:
-                    logger.warning(f"Unable to load file {os.path.join(input_directory, current_file)}, skipping...")
+                    logger.error(f"Unable to load file {os.path.join(input_directory, current_file)}, skipping...")
                     continue
-                #TODO: Cannot open resource
 
                 # Check if map is usable
                 if not self._is_usable(current_map):
@@ -345,9 +345,12 @@ class OutputProcessor(object):
 
                 # Convert to level 1.5
                 if current_map.processing_level != 1.5:
-                    current_map = sunpy.instr.aia.aiaprep(current_map)
+                    with warnings.catch_warnings():
+                        warnings.simplefilter("ignore")
+                        current_map = sunpy.instr.aia.aiaprep(current_map)
 
                 # Find coordinates of closest active region event which started before the image
+                #TODO: empty list error should not be happening, as we check beforehand whether the input region is fully contained in the active regions
                 image_time = current_map.date
                 closest_region_event = max(
                     (event for event in region_events if event["starttime"] <= image_time),
@@ -388,14 +391,14 @@ class OutputProcessor(object):
                 # Save patch
                 #output_arrays[current_wavelength] = current_patch
 
-                # what happens when converting to other formats?
-                patch_16bitint = (np.round(img * 32767)).astype(np.int16)
-                #logger.info(f'Total diff int16={np.sum(np.abs(patch_16bitint - img))}')
-                #logger.info(f'Max diff int16={np.amax(np.abs(patch_16bitint - img))}')
+                # Pillow only supports automatic casting from uint32 to uint16. Yet the uint32's
+                # max value (i.e. white) is 2^16-1. That's why we scale it to 2^16-1 and then
+                # cast it to uint32...
+                img_uint32 = (np.round(img * 65535)).astype(np.uint32)
 
                 # Save as image
                 output_file_path = os.path.join(output_directory, current_datetime.strftime("%Y-%m-%dT%H%M%S") + "__" + str(current_wavelength))
-                im = Image.fromarray(patch_16bitint)
+                im = Image.fromarray(img_uint32, 'I')
                 im.save(output_file_path, "PNG")
 
             # Save patches as compressed numpy file
