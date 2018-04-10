@@ -336,7 +336,7 @@ class OutputProcessor(object):
                 try:
                     current_map: sunpy.map.sources.AIAMap = sunpy.map.Map(fits_file)
                 except Exception as e:
-                    logger.error(f"Unable to load file {fits_file}, removing & skipping...")
+                    logger.error(f"Unable to load file {fits_file}, removing & skipping... {e}")
                     os.remove(fits_file)
                     continue
 
@@ -352,10 +352,14 @@ class OutputProcessor(object):
                         current_map = sunpy.instr.aia.aiaprep(current_map)
 
                 # Find coordinates of closest active region event which started before the image
-                #TODO: empty list error should not be happening, as we check beforehand whether the input region is fully contained in the active regions
+                #TODO: max() empty list error should not be happening, as we check beforehand whether the input region is fully contained in the active regions
                 image_time = current_map.date
+                tolerance = dt.timedelta(minutes=10)
+                regions_started_before_input = [event for event in region_events if event["starttime"] <= image_time + tolerance]
+                if len(regions_started_before_input) == 0:
+                    print('AHA')
                 closest_region_event = max(
-                    (event for event in region_events if event["starttime"] <= image_time),
+                    (regions_started_before_input),
                     key=lambda event: event["starttime"]
                 )
                 region_position = astropy.coordinates.SkyCoord(
@@ -369,7 +373,7 @@ class OutputProcessor(object):
                     image_time
                 )
 
-                # Transform target position to pixels, in carthesion coordinates (origin bottom left)
+                # Transform target position to pixels, in carthesian coordinates (origin bottom left)
                 center_x, center_y = current_map.world_to_pixel(region_position_rotated)
                 center_x, center_y = int(center_x.to_value()), int(center_y.to_value())
                 assert center_x - self.OUTPUT_SHAPE[1] / 2 >= 0
