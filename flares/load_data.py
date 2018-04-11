@@ -308,7 +308,7 @@ def _create_image_output(
     p = 64
 
     # Create pools for different download steps
-    with multiprocessing.Pool(processes=4) as request_pool, \
+    with multiprocessing.Pool(processes=8) as request_pool, \
             multiprocessing.Pool(processes=p) as download_pool, \
             multiprocessing.Pool(processes=p) as process_pool, \
             multiprocessing.Manager() as manager:

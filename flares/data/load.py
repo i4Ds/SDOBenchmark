@@ -278,15 +278,13 @@ class OutputProcessor(object):
             try:
                 # Process output
                 self._process_output(sample_id, fits_directory, sample_directory)
+
+                # Delete fits directory in any case to avoid space issues
+                shutil.rmtree(sample_directory, ignore_errors=True)
+                print(f'Removed directory {sample_directory}')
             except Exception as e:
                 logger.error(f"Error while processing data for sample {sample_id} (is skipped): {e}")
-
-                # Delete sample directory because it contains inconsistent data
-                #TODO:shutil.rmtree(sample_directory, ignore_errors=True)
-            finally:
-                # Delete fits directory in any case to avoid space issues
-                #TODO:shutil.rmtree(fits_directory, ignore_errors=True)
-                print(f'Would have deleted FITS files {fits_directory}')
+                # We'll leave directories be where an error occurred, for examination purposes
 
     def _process_output(self, sample_id: str, input_directory: str, output_directory: str):
 
