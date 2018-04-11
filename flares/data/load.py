@@ -63,9 +63,9 @@ class RequestSender(object):
                 retries += 1
                 #logger.info("Error fetching URLs for sample %s : %s", sample_id, e)
                 if retries % 100 == 0:
-                    logger.debug(f'Failed fetching URLs for sample %s after {retries} retries: %s', sample_id, e)
+                    logger.info(f'Failed fetching URLs for sample %s after {retries} retries: %s', sample_id, e)
                     if isinstance(e, URLError) and isinstance(e.reason, ConnectionRefusedError):
-                        logger.debug('waiting for a while longer...')
+                        logger.info('waiting for a while longer...')
                     else:
                         break
                 time.sleep(0.5)
@@ -170,7 +170,7 @@ class ImageLoader(object):
                         retries += 1
                         #logger.info("Error fetching FITS %s : %s", url, e)
                         if retries % 100 == 0:
-                            logger.warning(f'Failed fetching FITS %s after {retries} retries: %s', url, e)
+                            logger.info(f'Failed fetching FITS %s after {retries} retries: %s', url, e)
                             if isinstance(e, URLError) and isinstance(e.reason, ConnectionRefusedError):
                                 logger.info('waiting for a while longer...')
                             else:
