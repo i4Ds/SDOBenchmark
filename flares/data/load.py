@@ -323,7 +323,7 @@ class OutputProcessor(object):
                 # TODO: Could actually check record interval for missing values
                 for current_datetime, current_file in current_available_times:
                     _, current_step_images = min(time_steps, key=lambda step: abs(step[0] - current_datetime))
-                    assert current_wavelength not in current_step_images
+                    assert current_wavelength not in current_step_images, f"Are there too many FITS files in the folder..? {sample_id}, {current_wavelength}"
                     current_step_images[current_wavelength] = current_file
 
         # Process each time step
@@ -355,7 +355,6 @@ class OutputProcessor(object):
                         current_map = sunpy.instr.aia.aiaprep(current_map)
 
                 # Find coordinates of closest active region event which started before the image
-                #TODO: max() empty list error should not be happening, as we check beforehand whether the input region is fully contained in the active regions
                 image_time = current_map.date
                 tolerance = dt.timedelta(minutes=10)
                 regions_started_before_input = [event for event in region_events if event["starttime"] <= image_time + tolerance]
