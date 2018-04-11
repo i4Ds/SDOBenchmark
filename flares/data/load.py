@@ -279,7 +279,7 @@ class OutputProcessor(object):
                 # Process output
                 self._process_output(sample_id, fits_directory, sample_directory)
             except Exception as e:
-                logger.error("Error while processing data for sample %s (is skipped): %s", sample_id, e)
+                logger.error(f"Error while processing data for sample {sample_id} (is skipped): {e}")
 
                 # Delete sample directory because it contains inconsistent data
                 #TODO:shutil.rmtree(sample_directory, ignore_errors=True)
@@ -312,7 +312,7 @@ class OutputProcessor(object):
 
         # Assign images to actual time steps
         num_outputs = (sample_meta_data.end - sample_meta_data.start) // dt.timedelta(hours=self._cadence_hours)
-        time_steps = [(sample_meta_data.start + dt.timedelta(hours=offset), dict()) for offset in range(num_outputs)]
+        time_steps = [(sample_meta_data.start + dt.timedelta(hours=(offset*self._cadence_hours)), dict()) for offset in range(num_outputs)]
         for current_wavelength, current_available_times in available_times.items():
             if len(current_available_times) == num_outputs:
                 # Data for full duration available
@@ -337,7 +337,10 @@ class OutputProcessor(object):
                     current_map: sunpy.map.sources.AIAMap = sunpy.map.Map(fits_file)
                 except Exception as e:
                     logger.error(f"Unable to load file {fits_file}, removing & skipping... {e}")
-                    os.remove(fits_file)
+                    try:
+                        os.remove(fits_file)
+                    except Exception as e2:
+                        logger.error(f'Was unable to delete file {fits_file}, {e2}')
                     continue
 
                 # Check if map is usable
@@ -376,20 +379,20 @@ class OutputProcessor(object):
                 # Transform target position to pixels, in carthesian coordinates (origin bottom left)
                 center_x, center_y = current_map.world_to_pixel(region_position_rotated)
                 center_x, center_y = int(center_x.to_value()), int(center_y.to_value())
-                assert center_x - self.OUTPUT_SHAPE[1] / 2 >= 0
-                assert center_y - self.OUTPUT_SHAPE[0] / 2 >= 0
-                assert center_x + self.OUTPUT_SHAPE[1] / 2 < current_map.data.shape[1]
-                assert center_y + self.OUTPUT_SHAPE[0] / 2 < current_map.data.shape[0]
+                assert center_x - self.OUTPUT_SHAPE[1] / 2 >= 0, f"image out of bounds {center_x}"
+                assert center_y - self.OUTPUT_SHAPE[0] / 2 >= 0, f"image out of bounds {center_y}"
+                assert center_x + self.OUTPUT_SHAPE[1] / 2 < current_map.data.shape[1], f"image out of bounds {center_x}"
+                assert center_y + self.OUTPUT_SHAPE[0] / 2 < current_map.data.shape[0], f"image out of bounds {center_y}"
 
                 # Cut patch out of image
-                # Sunpy maps assume a carthesian coordinate system which is already incorporated in the pixel conversion
+                # Sunpy maps assume a cartesian coordinate system which is already incorporated in the pixel conversion
                 patch_start_y = center_y - self.OUTPUT_SHAPE[0] // 2
                 patch_start_x = center_x - self.OUTPUT_SHAPE[1] // 2
                 img = current_map.data[
                     patch_start_y:patch_start_y + self.OUTPUT_SHAPE[0],
                     patch_start_x:patch_start_x + self.OUTPUT_SHAPE[1],
                 ]
-                assert img.shape == self.OUTPUT_SHAPE
+                assert img.shape == self.OUTPUT_SHAPE, f'image shape is {img.shape} instead of {self.OUTPUT_SHAPE}'
 
                 # Image processing steps
                 img = self._FITS_to_image(img, current_map)
@@ -447,6 +450,6 @@ class OutputProcessor(object):
         elif pms['dataScalingType'] == 3:
             img = np.log10(img)
             # normalize to [0,1]
-            img = (img - math.log10(pms['dataMin'])) / math.log10(pms['dataMax'] - pms['dataMin'])
+            img = (img - math.log10(pms['dataMin'])) / (math.log10(pms['dataMax']) - math.log10(pms['dataMin']))
 
         return img
