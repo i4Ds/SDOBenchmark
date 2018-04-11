@@ -62,7 +62,7 @@ class RequestSender(object):
             except Exception as e:
                 retries += 1
                 #logger.info("Error fetching URLs for sample %s : %s", sample_id, e)
-                if retries % 15 == 0:
+                if retries % 100 == 0:
                     logger.debug(f'Failed fetching URLs for sample %s after {retries} retries: %s', sample_id, e)
                     if isinstance(e, URLError) and isinstance(e.reason, ConnectionRefusedError):
                         logger.debug('waiting for a while longer...')
@@ -169,7 +169,7 @@ class ImageLoader(object):
                     except Exception as e:
                         retries += 1
                         #logger.info("Error fetching FITS %s : %s", url, e)
-                        if retries % 15 == 0:
+                        if retries % 100 == 0:
                             logger.warning(f'Failed fetching FITS %s after {retries} retries: %s', url, e)
                             if isinstance(e, URLError) and isinstance(e.reason, ConnectionRefusedError):
                                 logger.info('waiting for a while longer...')
@@ -326,9 +326,11 @@ class OutputProcessor(object):
                     assert current_wavelength not in current_step_images, f"Are there too many FITS files in the folder..? {sample_id}, {current_wavelength}"
                     current_step_images[current_wavelength] = current_file
 
+        os.makedirs(output_directory, exist_ok=True)
+
         # Process each time step
         for current_datetime, current_images in time_steps:
-            output_arrays = dict()
+            #output_arrays = dict()
 
             # Process each wavelength
             for current_wavelength, current_file in current_images.items():
@@ -405,7 +407,7 @@ class OutputProcessor(object):
                 img_uint32 = (np.round(img * 65535)).astype(np.uint32)
 
                 # Save as image
-                output_file_path = os.path.join(output_directory, current_datetime.strftime("%Y-%m-%dT%H%M%S") + "__" + str(current_wavelength))
+                output_file_path = os.path.join(output_directory, current_datetime.strftime("%Y-%m-%dT%H%M%S") + "__" + str(current_wavelength) + ".png")
                 im = Image.fromarray(img_uint32, 'I')
                 im.save(output_file_path, "PNG")
 
