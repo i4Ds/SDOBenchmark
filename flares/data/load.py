@@ -38,6 +38,7 @@ def sample_path(sample_id: str, output_directory: str) -> str:
 
 class RequestSender(object):
     """Downloads FITS URLs for later use in the ImageDownloader"""
+    # http://drms.readthedocs.io/en/stable/tutorial.html
     SERIES_NAMES = (
         # TODO: HMI
         "aia.lev1_vis_1h",
@@ -76,13 +77,14 @@ class RequestSender(object):
 
     def _perform_request(self, sample_id: str, start: dt.datetime, end: dt.datetime) -> List[str]:
         client = drms.Client(email=self._notify_email, verbose=True)
-        input_hours = (end - start) // dt.timedelta(hours=1)
+        #input_hours = (end - start) // dt.timedelta(hours=1)
 
         # Submit requests
         requests = []
         for series_name in self.SERIES_NAMES:
-            query = f"{series_name}[{start:%Y.%m.%d_%H:%M:%S_TAI}/{input_hours}h@{self._cadence_hours}h]{{image}}"
-            requests.append(client.export(query, method="url_quick", protocol="as-is"))
+            for hd in [0, 6, 10, 11]: # [] hours after input start. (11 = 1h before prediction period)
+                query = f"{series_name}[{(start + dt.timedelta(hours=hd)):%Y.%m.%d_%H:%M:%S_TAI}]{{image}}"
+                requests.append(client.export(query, method="url_quick", protocol="as-is"))
 
         # Wait for all requests if they have to be processed
         urls = []
@@ -309,8 +311,8 @@ class OutputProcessor(object):
             available_times[current_wavelength].append((current_datetime, current_file))
 
         # Assign images to actual time steps
-        num_outputs = (sample_meta_data.end - sample_meta_data.start) // dt.timedelta(hours=self._cadence_hours)
-        time_steps = [(sample_meta_data.start + dt.timedelta(hours=(offset*self._cadence_hours)), dict()) for offset in range(num_outputs)]
+        num_outputs = 4
+        time_steps = [(sample_meta_data.start + dt.timedelta(hours=offset), dict()) for offset in [0, 6, 10, 11]]
         for current_wavelength, current_available_times in available_times.items():
             if len(current_available_times) == num_outputs:
                 # Data for full duration available
