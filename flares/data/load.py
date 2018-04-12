@@ -282,8 +282,8 @@ class OutputProcessor(object):
                 self._process_output(sample_id, fits_directory, sample_directory)
 
                 # Delete fits directory in any case to avoid space issues
-                #shutil.rmtree(fits_directory, ignore_errors=True)
-                #print(f'Removed directory {fits_directory}')
+                shutil.rmtree(fits_directory, ignore_errors=True)
+                print(f'Removed directory {fits_directory}')
             except Exception as e:
                 logger.error(f"Error while processing data for sample {sample_id} (is skipped): {e}")
                 # We'll leave directories be where an error occurred, for examination purposes
