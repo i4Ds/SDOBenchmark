@@ -190,42 +190,42 @@ class OutputProcessor(object):
     IMAGE_PARAMS = {
         "94": {
             'dataMin': 0.1,
-            'dataMax': 30,
+            'dataMax': 800,
             'dataScalingType': 3 # 0 - linear, 1 - sqrt, 3 - log10
         },
         "131": {
             'dataMin': 0.7,
-            'dataMax': 500,
+            'dataMax': 1900,
             'dataScalingType': 3 # 0 - linear, 1 - sqrt, 3 - log10
         },
         "171": {
-            'dataMin': 1,
-            'dataMax': 1600,
+            'dataMin': 0.1,
+            'dataMax': 3500,
             'dataScalingType': 3 # 0 - linear, 1 - sqrt, 3 - log10
         },
         "193": {
-            'dataMin': 20,
-            'dataMax': 2500,
+            'dataMin': 0.1,
+            'dataMax': 5500,
             'dataScalingType': 3 # 0 - linear, 1 - sqrt, 3 - log10
         },
         "211": {
             'dataMin': 7,
-            'dataMax': 1500,
+            'dataMax': 3500,
             'dataScalingType': 3 # 0 - linear, 1 - sqrt, 3 - log10
         },
         "304": {
-            'dataMin': 0.8,
-            'dataMax': 250,
+            'dataMin': 0.1,
+            'dataMax': 3500,
             'dataScalingType': 3 # 0 - linear, 1 - sqrt, 3 - log10
         },
         "335": {
             'dataMin': 0.4,
-            'dataMax': 80,
+            'dataMax': 1000,
             'dataScalingType': 3 # 0 - linear, 1 - sqrt, 3 - log10
         },
         "1600": {
             'dataMin': 10,
-            'dataMax': 400,
+            'dataMax': 800,
             'dataScalingType': 3 # 0 - linear, 1 - sqrt, 3 - log10
         },
         "1700": {
@@ -280,8 +280,8 @@ class OutputProcessor(object):
                 self._process_output(sample_id, fits_directory, sample_directory)
 
                 # Delete fits directory in any case to avoid space issues
-                shutil.rmtree(sample_directory, ignore_errors=True)
-                print(f'Removed directory {sample_directory}')
+                #shutil.rmtree(fits_directory, ignore_errors=True)
+                #print(f'Removed directory {fits_directory}')
             except Exception as e:
                 logger.error(f"Error while processing data for sample {sample_id} (is skipped): {e}")
                 # We'll leave directories be where an error occurred, for examination purposes
@@ -395,19 +395,13 @@ class OutputProcessor(object):
 
                 # Image processing steps
                 img = self._FITS_to_image(img, current_map)
-
-                # Save patch
-                #output_arrays[current_wavelength] = current_patch
-
-                # Pillow only supports automatic casting from uint32 to uint16. Yet the uint32's
-                # max value (i.e. white) is 2^16-1. That's why we scale it to 2^16-1 and then
-                # cast it to uint32...
-                img_uint32 = (np.round(img * 65535)).astype(np.uint32)
+                img_uint8 = (np.round(img * 255)).astype(np.uint8)
 
                 # Save as image
-                output_file_path = os.path.join(output_directory, current_datetime.strftime("%Y-%m-%dT%H%M%S") + "__" + str(current_wavelength) + ".png")
-                im = Image.fromarray(img_uint32, 'I')
-                im.save(output_file_path, "PNG")
+                output_file_path = os.path.join(output_directory, current_datetime.strftime("%Y-%m-%dT%H%M%S") + "__" + str(current_wavelength) + ".jpg")
+                im = Image.fromarray(img_uint8, 'I')
+                im.resize((256,256), Image.BILINEAR)
+                im.save(output_file_path, "jpeg")
 
             # Save patches as compressed numpy file
             #output_file_path = os.path.join(output_directory, current_datetime.strftime("%Y-%m-%dT%H%M%S"))
