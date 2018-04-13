@@ -322,7 +322,6 @@ class OutputProcessor(object):
 
         # Process each time step
         for current_datetime, current_images in time_steps:
-            #output_arrays = dict()
 
             # Process each wavelength
             for current_wavelength, current_file in current_images.items():
@@ -396,10 +395,6 @@ class OutputProcessor(object):
                 im = Image.fromarray(img_uint8)
                 im = im.resize((256,256), Image.BILINEAR)
                 im.save(output_file_path, "jpeg")
-
-            # Save patches as compressed numpy file
-            #output_file_path = os.path.join(output_directory, current_datetime.strftime("%Y-%m-%dT%H%M%S"))
-            #np.savez_compressed(output_file_path, **output_arrays)
 
         logger.info("Created sample %s output", sample_id)
 
