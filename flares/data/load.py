@@ -429,7 +429,7 @@ class OutputProcessor(object):
         # Actually, decided to go with own visualization.
         # TODO Recalculate the FITS header CRPIX values if need be
         img = np.flipud(img)
-        img = img / current_map.meta["EXPTIME"] #  normalize for exposure
+        img = img / (current_map.meta["EXPTIME"] if current_map.meta["EXPTIME"] > 0 else 1) #  normalize for exposure
         wavelength = str(current_map.meta["wavelnth"])
         pms = self.IMAGE_PARAMS[wavelength]
         '''if wavelength == '171':
