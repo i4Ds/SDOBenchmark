@@ -201,7 +201,7 @@ class OutputProcessor(object):
             'dataScalingType': 3 # 0 - linear, 1 - sqrt, 3 - log10
         },
         "171": {
-            'dataMin': 0.1,
+            'dataMin': 5,
             'dataMax': 3500,
             'dataScalingType': 3 # 0 - linear, 1 - sqrt, 3 - log10
         },
