@@ -401,7 +401,7 @@ class OutputProcessor(object):
 
                 # Save as image
                 output_file_path = os.path.join(output_directory, current_datetime.strftime("%Y-%m-%dT%H%M%S") + "__" + str(current_wavelength) + ".jpg")
-                im = Image.fromarray(img_uint8, 'I')
+                im = Image.fromarray(img_uint8)
                 im.resize((256,256), Image.BILINEAR)
                 im.save(output_file_path, "jpeg")
 
