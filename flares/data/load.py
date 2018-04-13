@@ -311,20 +311,12 @@ class OutputProcessor(object):
             available_times[current_wavelength].append((current_datetime, current_file))
 
         # Assign images to actual time steps
-        num_outputs = 4
         time_steps = [(sample_meta_data.start + dt.timedelta(hours=offset), dict()) for offset in [0, 6, 10, 11]]
         for current_wavelength, current_available_times in available_times.items():
-            if len(current_available_times) == num_outputs:
-                # Data for full duration available
-                for idx, (_, current_file) in enumerate(sorted(current_available_times)):
-                    time_steps[idx][1][current_wavelength] = current_file
-            else:
-                # Use closest time step to each image
-                # TODO: Could actually check record interval for missing values
-                for current_datetime, current_file in current_available_times:
-                    _, current_step_images = min(time_steps, key=lambda step: abs(step[0] - current_datetime))
-                    assert current_wavelength not in current_step_images, f"Are there too many FITS files in the folder..? {sample_id}, {current_wavelength}"
-                    current_step_images[current_wavelength] = current_file
+            for current_datetime, current_file in current_available_times:
+                current_step_images = min(time_steps, key=lambda step: abs(step[0] - current_datetime))[1]
+                assert current_wavelength not in current_step_images, f"Are there too many FITS files in the folder..? {sample_id}, {current_wavelength}"
+                current_step_images[current_wavelength] = current_file
 
         os.makedirs(output_directory, exist_ok=True)
 
