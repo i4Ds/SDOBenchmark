@@ -51,7 +51,9 @@ class RequestSender(object):
         # TODO: HMI
         "aia.lev1_vis_1h",
         "aia.lev1_uv_24s",
-        "aia.lev1_euv_12s"
+        "aia.lev1_euv_12s",
+        "hmi.Ic_45s",
+        "hmi.M_45s"
     )
 
     RECORD_PARSE_REGEX = re.compile(r"^.+\[(.+)\]\[(.+)\].+$")
@@ -110,7 +112,13 @@ class RequestSender(object):
         for series_name in self.SERIES_NAMES:
             for hd in [0, 6, 10, 11]: # [] hours after input start. (11 = 1h before prediction period)
                 qt = start + dt.timedelta(hours=hd)
-                query = f"{series_name}[{qt:%Y.%m.%d_%H:%M:%S_TAI}]{{image}}"
+                query = f"{series_name}[{qt:%Y.%m.%d_%H:%M:%S_TAI}]"
+                if series_name.startswith('hmi.Ic_'):
+                    query += '{{continuum}}'
+                elif series_name.startswith('hmi.M_'):
+                    query += '{{magnetogram}}'
+                else:
+                    query += '{{image}}'
                 requests.append((client.export(query, method="url_quick", protocol="as-is"), qt))
 
         # Wait for all requests if they have to be processed
@@ -157,6 +165,7 @@ def _requestCaching(q, cdir):
 
 class ImageLoader(object):
     RECORD_PARSE_REGEX = re.compile(r"^.+\[(.+)\]\[(.+)\].+$")
+    HMI_PARSE_REGEX = re.compile(r".+{(.+)}$")
     RECORD_DATE_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
 
     def __init__(
@@ -218,6 +227,9 @@ class ImageLoader(object):
 
             record_date_raw, record_wavelength = record_match.groups()
             record_date = dt.datetime.strptime(record_date_raw, self.RECORD_DATE_FORMAT)
+
+            if len(record_wavelength) == 1:
+                record_wavelength = self.HMI_PARSE_REGEX.match(record).groups()[0]
 
             output_file_name = f"{record_date:%Y-%m-%dT%H%M%S}_{record_wavelength}.fits"
             fp = os.path.join(fits_directory, output_file_name)
