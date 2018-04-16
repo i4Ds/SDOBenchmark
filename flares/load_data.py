@@ -315,9 +315,10 @@ def _create_image_output(
         # Queues for synchronisation
         download_queue = manager.Queue(maxsize=p*4)
         processing_queue = manager.Queue(maxsize=p*4)
+        cache_queue = manager.Queue()
 
         # Create workers
-        request_sender = RequestSender(download_queue, email_address, cadence_hours, os.path.join(output_directory, 'requestsCache.json'))
+        request_sender = RequestSender(download_queue, email_address, cadence_hours, os.path.join(output_directory, 'requestsCache.json'), cache_queue)
         image_loader = ImageLoader(download_queue, processing_queue, output_directory, fits_directory)
         output_processor = OutputProcessor(processing_queue, output_directory, fits_directory, samples, noaa_regions, cadence_hours)
 

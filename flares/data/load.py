@@ -57,37 +57,43 @@ class RequestSender(object):
     RECORD_PARSE_REGEX = re.compile(r"^.+\[(.+)\]\[(.+)\].+$")
     RECORD_DATE_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
 
-    def __init__(self, output_queue: multiprocessing.Queue, notify_email: str, cadence_hours: int, cache_dir: str):
+    def __init__(self, output_queue: multiprocessing.Queue, notify_email: str, cadence_hours: int, cache_dir: str, cache_queue: multiprocessing.Queue):
         self._output_queue = output_queue
         self._notify_email = notify_email
         self._cadence_hours = cadence_hours
         self._cache_dir = cache_dir
-        self._initCache()
+        self._cachingQueue = cache_queue
+        self._initCache(cache_queue)
 
     def __call__(self, sample_input: Tuple[str, pd.Series]):
         sample_id, sample_values = sample_input
         logger.debug("Requesting data for sample %s", sample_id)
 
-        retries = 0
-        while True:
-            try:
-                # Perform request and provide URLs as result
-                request_urls = self._perform_request(sample_id, sample_values.start, sample_values.end)
-            except Exception as e:
-                retries += 1
-                #logger.info("Error fetching URLs for sample %s : %s", sample_id, e)
-                if retries % 100 == 0:
-                    logger.info(f'Failed fetching URLs for sample %s after {retries} retries: %s', sample_id, e)
-                    if isinstance(e, URLError) and isinstance(e.reason, ConnectionRefusedError):
-                        logger.info('waiting for a while longer...')
-                    else:
-                        break
-                time.sleep(0.5)
-            else:
-                logger.info(f'received URLs for {sample_id} after {retries} retries')
-                self._output_queue.put((sample_id, request_urls))
-                self._cachingQueue.put((sample_id, request_urls))
-                break
+        if sample_id in self._answersCache:
+            request_urls = self._answersCache[sample_id]
+            logger.info(f'received URLs for {sample_id} from cache')
+            self._output_queue.put((sample_id, request_urls))
+        else:
+            retries = 0
+            while True:
+                try:
+                    # Perform request and provide URLs as result
+                    request_urls = self._perform_request(sample_id, sample_values.start, sample_values.end)
+                except Exception as e:
+                    retries += 1
+                    #logger.info("Error fetching URLs for sample %s : %s", sample_id, e)
+                    if retries % 100 == 0:
+                        logger.info(f'Failed fetching URLs for sample %s after {retries} retries: %s', sample_id, e)
+                        if isinstance(e, URLError) and isinstance(e.reason, ConnectionRefusedError):
+                            logger.info('waiting for a while longer...')
+                        else:
+                            break
+                    time.sleep(0.5)
+                else:
+                    logger.info(f'received URLs for {sample_id} after {retries} retries')
+                    self._output_queue.put((sample_id, request_urls))
+                    self._cachingQueue.put((sample_id, request_urls))
+                    break
 
     def _perform_request(self, sample_id: str, start: dt.datetime, end: dt.datetime) -> List[str]:
         client = drms.Client(email=self._notify_email, verbose=True)
@@ -124,17 +130,22 @@ class RequestSender(object):
 
         return urls
 
-    def _initCache(self):
+    def _initCache(self, queue):
+        if not os.path.isfile(self._cache_dir):
+            with open(self._cache_dir, "w") as f:
+                json.dump({}, f, iterable_as_array=True)
         with open(self._cache_dir, "r") as f:
             self._answersCache = json.load(f)
-        self._cachingQueue = multiprocessing.Queue()
-        p = multiprocessing.Process(target=_requestCaching, args=(self._cachingQueue, self._cache_dir))
+        p = multiprocessing.Process(target=_requestCaching, args=(queue, self._cache_dir))
+        p.start()
 
 def _requestCaching(q, cdir):
     with open(cdir, "r") as f:
         _answersCache = json.load(f)
+    logger.info('cdir: ' + cdir)
     while True:
         answer = q.get()
+        logger.info(f'Got an URL: {answer[0]}: {str(answer[1])}')
         _answersCache[answer[0]] = answer[1]
         with open(cdir, "w") as f:
             json.dump(_answersCache, f, iterable_as_array=True)
