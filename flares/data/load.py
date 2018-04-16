@@ -110,7 +110,7 @@ class RequestSender(object):
         # Submit requests
         requests = []
         for series_name in self.SERIES_NAMES:
-            for hd in [0, 6, 10, 11]: # [] hours after input start. (11 = 1h before prediction period)
+            for hd in [0, 6*30, 10*60+30, 11*60+50]: # [] minutes after input start. (last = 10min before prediction period)
                 qt = start + dt.timedelta(hours=hd)
                 query = f"{series_name}[{qt:%Y.%m.%d_%H:%M:%S_TAI}]"
                 if series_name.startswith('hmi.Ic_'):
@@ -137,7 +137,7 @@ class RequestSender(object):
                         logger.info(f"Invalid record format '{url_row.record}'")
                         continue
 
-                    record_date_raw, record_wavelength = record_match.groups()
+                    record_date_raw, _ = record_match.groups()
                     record_date = dt.datetime.strptime(record_date_raw, self.RECORD_DATE_FORMAT)
                     if abs(record_date - requested_date) < dt.timedelta(minutes=29):
                         urls.append((url_row.record, url_row.url))
@@ -381,7 +381,7 @@ class OutputProcessor(object):
             available_times[current_wavelength].append((current_datetime, current_file))
 
         # Assign images to actual time steps
-        time_steps = [(sample_meta_data.start + dt.timedelta(hours=offset), dict()) for offset in [0, 6, 10, 11]]
+        time_steps = [(sample_meta_data.start + dt.timedelta(hours=offset), dict()) for offset in [0, 6*30, 10*60+30, 11*60+50]]
         for current_wavelength, current_available_times in available_times.items():
             for current_datetime, current_file in current_available_times:
                 current_step_images = min(time_steps, key=lambda step: abs(step[0] - current_datetime))[1]
