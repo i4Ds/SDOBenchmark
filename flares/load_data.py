@@ -318,7 +318,6 @@ def _create_image_output(
         cache_queue = manager.Queue()
 
         # Create workers
-        request_sender = RequestSender(download_queue, email_address, cadence_hours, os.path.join(output_directory, 'requestsCache.json'), cache_queue)
         image_loader = ImageLoader(download_queue, processing_queue, output_directory, fits_directory)
         output_processor = OutputProcessor(processing_queue, output_directory, fits_directory, samples, noaa_regions, cadence_hours)
 
@@ -330,7 +329,8 @@ def _create_image_output(
 
         # Map inputs to finally start full process
         logger.debug("Starting requests")
-        request_pool.map(request_sender, target_samples) #target_samples[:10]
+        with RequestSender(download_queue, email_address, cadence_hours, os.path.join(output_directory, 'requestsCache.json'), cache_queue) as request_sender:
+            request_pool.map(request_sender, target_samples) #target_samples[:10]
         logger.info("Finished requests")
 
         # Wait for image loader workers to finish

@@ -95,6 +95,12 @@ class RequestSender(object):
                     self._cachingQueue.put((sample_id, request_urls))
                     break
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self._cachingProcess.join()
+
     def _perform_request(self, sample_id: str, start: dt.datetime, end: dt.datetime) -> List[str]:
         client = drms.Client(email=self._notify_email, verbose=True)
         #input_hours = (end - start) // dt.timedelta(hours=1)
@@ -136,16 +142,14 @@ class RequestSender(object):
                 json.dump({}, f, iterable_as_array=True)
         with open(self._cache_dir, "r") as f:
             self._answersCache = json.load(f)
-        p = multiprocessing.Process(target=_requestCaching, args=(queue, self._cache_dir))
-        p.start()
+        self._cachingProcess = multiprocessing.Process(target=_requestCaching, args=(queue, self._cache_dir))
+        self._cachingProcess.start()
 
 def _requestCaching(q, cdir):
     with open(cdir, "r") as f:
         _answersCache = json.load(f)
-    logger.info('cdir: ' + cdir)
     while True:
         answer = q.get()
-        logger.info(f'Got an URL: {answer[0]}: {str(answer[1])}')
         _answersCache[answer[0]] = answer[1]
         with open(cdir, "w") as f:
             json.dump(_answersCache, f, iterable_as_array=True)
