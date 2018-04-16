@@ -315,7 +315,6 @@ def _create_image_output(
         # Queues for synchronisation
         download_queue = manager.Queue(maxsize=p*4)
         processing_queue = manager.Queue(maxsize=p*4)
-        cache_queue = manager.Queue()
 
         # Create workers
         image_loader = ImageLoader(download_queue, processing_queue, output_directory, fits_directory)
@@ -329,9 +328,9 @@ def _create_image_output(
 
         # Map inputs to finally start full process
         logger.debug("Starting requests")
-        with RequestSender(download_queue, email_address, cadence_hours, os.path.join(output_directory, 'requestsCache.json'), cache_queue) as request_sender:
+        with RequestSender(download_queue, email_address, cadence_hours, os.path.join(output_directory, 'requestsCache.json'), manager) as request_sender:
             request_pool.map(request_sender, target_samples) #target_samples[:10]
-        logger.info("Finished requests")
+            logger.info("Finished requests")
 
         # Wait for image loader workers to finish
         logger.info("Waiting for image loader workers to finish")

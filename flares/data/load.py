@@ -36,7 +36,7 @@ def sample_path(sample_id: str, output_directory: str) -> str:
     ar_nr, p = sample_id.split("_",1)
     return os.path.join(output_directory, ar_nr, p)
 
-def sample_exists(dir_path: str, expectedFiles=40) -> bool:
+def sample_exists(dir_path: str, expectedFiles=48) -> bool:
     if not os.path.isdir(dir_path):
         return False
     if len([name for name in os.listdir(dir_path) if name.endswith('.jpg')]) == expectedFiles:
@@ -59,13 +59,13 @@ class RequestSender(object):
     RECORD_PARSE_REGEX = re.compile(r"^.+\[(.+)\]\[(.+)\].+$")
     RECORD_DATE_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
 
-    def __init__(self, output_queue: multiprocessing.Queue, notify_email: str, cadence_hours: int, cache_dir: str, cache_queue: multiprocessing.Queue):
+    def __init__(self, output_queue: multiprocessing.Queue, notify_email: str, cadence_hours: int, cache_dir: str, manager: multiprocessing.Manager):
         self._output_queue = output_queue
         self._notify_email = notify_email
         self._cadence_hours = cadence_hours
         self._cache_dir = cache_dir
-        self._cachingQueue = cache_queue
-        self._initCache(cache_queue)
+        self._cachingQueue = manager.Queue()
+        self._initCache(manager)
 
     def __call__(self, sample_input: Tuple[str, pd.Series]):
         sample_id, sample_values = sample_input
@@ -144,13 +144,13 @@ class RequestSender(object):
 
         return urls
 
-    def _initCache(self, queue):
+    def _initCache(self, manager):
         if not os.path.isfile(self._cache_dir):
             with open(self._cache_dir, "w") as f:
                 json.dump({}, f, iterable_as_array=True)
         with open(self._cache_dir, "r") as f:
             self._answersCache = json.load(f)
-        self._cachingProcess = multiprocessing.Process(target=_requestCaching, args=(queue, self._cache_dir))
+        self._cachingProcess = manager.Process(target=_requestCaching, args=(self._cachingQueue, self._cache_dir))
         self._cachingProcess.start()
 
 def _requestCaching(q, cdir):
