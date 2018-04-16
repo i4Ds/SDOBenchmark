@@ -219,7 +219,6 @@ class ImageLoader(object):
         logger.debug(f'Downloading {len(records)} FITS files into {fits_directory}...')
 
         for record, url in records:
-            # TODO: This does not work with HMI
             record_match = self.RECORD_PARSE_REGEX.match(record)
 
             if record_match is None:
@@ -309,6 +308,16 @@ class OutputProcessor(object):
             'dataMin': 4000,
             'dataMax': 20000,
             'dataScalingType': 3 # 0 - linear, 1 - sqrt, 3 - log10
+        },
+        "continuum": {
+            'dataMin': 0,
+            'dataMax': 500000,
+            'dataScalingType': 0
+        },
+        "magnetogram": {
+            'dataMin': -250,
+            'dataMax': 250,
+            'dataScalingType': 0
         }
     }
 
@@ -463,7 +472,7 @@ class OutputProcessor(object):
                 # Save as image
                 output_file_path = os.path.join(output_directory, current_datetime.strftime("%Y-%m-%dT%H%M%S") + "__" + str(current_wavelength) + ".jpg")
                 im = Image.fromarray(img_uint8)
-                im = im.resize((256,256), Image.BICUBIC) # bicubic for AIA, bilinear for HMI
+                im = im.resize((256,256), Image.BICUBIC)
                 im.save(output_file_path, "jpeg")
 
         logger.info("Created sample %s output", sample_id)
@@ -498,10 +507,12 @@ class OutputProcessor(object):
         if pms['dataScalingType'] == 1:
             img = np.sqrt(img)
             # normalize to [0,1]
-            img = (img - math.sqrt(pms['dataMin'])) / math.sqrt(pms['dataMax'] - pms['dataMin'])
+            img = (img - math.sqrt(pms['dataMin'])) / (math.sqrt(pms['dataMax']) - math.sqrt(pms['dataMin']))
         elif pms['dataScalingType'] == 3:
             img = np.log10(img)
             # normalize to [0,1]
             img = (img - math.log10(pms['dataMin'])) / (math.log10(pms['dataMax']) - math.log10(pms['dataMin']))
+        else:
+            img = (img - pms['dataMin']) / (pms['dataMax'] - pms['dataMin'])
 
         return img
