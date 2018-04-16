@@ -10,6 +10,7 @@ from typing import Tuple, List, Dict
 import time
 import math
 import warnings
+import simplejson as json
 
 import astropy.coordinates
 import astropy.time
@@ -35,6 +36,13 @@ def sample_path(sample_id: str, output_directory: str) -> str:
     ar_nr, p = sample_id.split("_",1)
     return os.path.join(output_directory, ar_nr, p)
 
+def sample_exists(dir_path: str, expectedFiles=40) -> bool:
+    if not os.path.isdir(dir_path):
+        return False
+    if len([name for name in os.listdir(dir_path) if name.endswith('.jpg')]) == expectedFiles:
+        return True
+    return False
+
 
 class RequestSender(object):
     """Downloads FITS URLs for later use in the ImageDownloader"""
@@ -46,10 +54,15 @@ class RequestSender(object):
         "aia.lev1_euv_12s"
     )
 
-    def __init__(self, output_queue: multiprocessing.Queue, notify_email: str, cadence_hours: int):
+    RECORD_PARSE_REGEX = re.compile(r"^.+\[(.+)\]\[(.+)\].+$")
+    RECORD_DATE_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
+
+    def __init__(self, output_queue: multiprocessing.Queue, notify_email: str, cadence_hours: int, cache_dir: str):
         self._output_queue = output_queue
         self._notify_email = notify_email
         self._cadence_hours = cadence_hours
+        self._cache_dir = cache_dir
+        self._initCache()
 
     def __call__(self, sample_input: Tuple[str, pd.Series]):
         sample_id, sample_values = sample_input
@@ -73,6 +86,7 @@ class RequestSender(object):
             else:
                 logger.info(f'received URLs for {sample_id} after {retries} retries')
                 self._output_queue.put((sample_id, request_urls))
+                self._cachingQueue.put((sample_id, request_urls))
                 break
 
     def _perform_request(self, sample_id: str, start: dt.datetime, end: dt.datetime) -> List[str]:
@@ -83,12 +97,13 @@ class RequestSender(object):
         requests = []
         for series_name in self.SERIES_NAMES:
             for hd in [0, 6, 10, 11]: # [] hours after input start. (11 = 1h before prediction period)
-                query = f"{series_name}[{(start + dt.timedelta(hours=hd)):%Y.%m.%d_%H:%M:%S_TAI}]{{image}}"
-                requests.append(client.export(query, method="url_quick", protocol="as-is"))
+                qt = start + dt.timedelta(hours=hd)
+                query = f"{series_name}[{qt:%Y.%m.%d_%H:%M:%S_TAI}]{{image}}"
+                requests.append((client.export(query, method="url_quick", protocol="as-is"), qt))
 
         # Wait for all requests if they have to be processed
         urls = []
-        for request in requests:
+        for request, requested_date in requests:
             if request.id is not None:
                 # Actual request had to be made, wait for result
                 logger.debug("As-is data not available for sample %s, created request %s", sample_id, request.id)
@@ -96,9 +111,33 @@ class RequestSender(object):
 
             if request.status != 4: # Empty set
                 for _, url_row in request.urls.iterrows():
-                    urls.append((url_row.record, url_row.url))
+                    record_match = self.RECORD_PARSE_REGEX.match(url_row.record)
+
+                    if record_match is None:
+                        logger.info(f"Invalid record format '{url_row.record}'")
+                        continue
+
+                    record_date_raw, record_wavelength = record_match.groups()
+                    record_date = dt.datetime.strptime(record_date_raw, self.RECORD_DATE_FORMAT)
+                    if abs(record_date - requested_date) < dt.timedelta(minutes=29):
+                        urls.append((url_row.record, url_row.url))
 
         return urls
+
+    def _initCache(self):
+        with open(self._cache_dir, "r") as f:
+            self._answersCache = json.load(f)
+        self._cachingQueue = multiprocessing.Queue()
+        p = multiprocessing.Process(target=_requestCaching, args=(self._cachingQueue, self._cache_dir))
+
+def _requestCaching(q, cdir):
+    with open(cdir, "r") as f:
+        _answersCache = json.load(f)
+    while True:
+        answer = q.get()
+        _answersCache[answer[0]] = answer[1]
+        with open(cdir, "w") as f:
+            json.dump(_answersCache, f, iterable_as_array=True)
 
 
 class ImageLoader(object):
@@ -121,7 +160,7 @@ class ImageLoader(object):
         logger.debug("Image loader started")
         while True:
             current_input = self._input_queue.get()
-            logger.debug(f'Remaining URL sets in queue: {self._input_queue.qsize()}')
+            logger.info(f'Remaining URL sets in queue: {self._input_queue.qsize()}')
 
             # Check if done
             if current_input is None:
@@ -130,20 +169,24 @@ class ImageLoader(object):
             sample_id, records = current_input
             logger.debug("Downloading images of sample %s", sample_id)
 
-            fits_directory = sample_path(sample_id, self._fits_directory)
-            try:
-                # Download image
-                self._download_images(fits_directory, records)
+            # Check whether the images already exist
+            if not sample_exists(sample_path(sample_id, self._output_directory), expectedFiles=len(records)):
+                fits_directory = sample_path(sample_id, self._fits_directory)
+                try:
+                    # Download image
+                    self._download_images(fits_directory, records)
 
-                # Enqueue next work item
-                self._output_queue.put(sample_id)
+                    # Enqueue next work item
+                    self._output_queue.put(sample_id)
 
-            except Exception as e:
-                logger.error("Error while downloading data for sample %s (is skipped): %s", sample_id, e)
+                except Exception as e:
+                    logger.error("Error while downloading data for sample %s (is skipped): %s", sample_id, e)
 
-                # Delete sample directory because it contains inconsistent data
-                # TODO: Just delete this 1 input data, not the entire fits folder...
-                #shutil.rmtree(sample_directory, ignore_errors=True)
+                    # Delete sample directory because it contains inconsistent data
+                    # TODO: Just delete this 1 input data, not the entire fits folder...
+                    #shutil.rmtree(sample_directory, ignore_errors=True)
+            else:
+                logger.info(f'Sample {sample_id} already exists')
 
     def _download_images(self, fits_directory: str, records: List[Tuple[str, str]]):
         fits_directory = os.path.join(fits_directory, "_fits_temp")
@@ -266,7 +309,7 @@ class OutputProcessor(object):
         logger.debug("Output processor started")
         while True:
             sample_id = self._input_queue.get()
-            logger.info(f'Remaining URL sets in queue: {self._input_queue.qsize()}')
+            logger.info(f'Remaining FITS sets in queue: {self._input_queue.qsize()}')
 
             # Check if done
             if sample_id is None:

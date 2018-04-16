@@ -13,7 +13,7 @@ import simplejson as json
 
 import flares.util as util
 from flares.data.extract import load_hek_data, load_goes_flux, goes_files, load_all_goes_profiles
-from flares.data.load import sample_path, RequestSender, ImageLoader, OutputProcessor
+from flares.data.load import sample_path, sample_exists, RequestSender, ImageLoader, OutputProcessor
 from flares.data.transform import extract_events, map_flares, active_region_time_ranges, sample_ranges, verify_sampling
 
 DEFAULT_ARGS = {
@@ -301,9 +301,9 @@ def _create_image_output(
     target_samples = [
         (sample_id, sample_values)
         for sample_id, sample_values in samples.iterrows()
-        #if not os.path.isdir(sample_path(sample_id, output_directory)) # TODO: Is that so..?
+        if not sample_exists(sample_path(sample_id, output_directory))
     ]
-    logger.debug("%d samples will be created", len(target_samples))
+    logger.info("%d samples will be created", len(target_samples))
 
     p = 64
 
@@ -313,11 +313,11 @@ def _create_image_output(
             multiprocessing.Pool(processes=p) as process_pool, \
             multiprocessing.Manager() as manager:
         # Queues for synchronisation
-        download_queue = manager.Queue(maxsize=p)
-        processing_queue = manager.Queue(maxsize=p)
+        download_queue = manager.Queue(maxsize=p*4)
+        processing_queue = manager.Queue(maxsize=p*4)
 
         # Create workers
-        request_sender = RequestSender(download_queue, email_address, cadence_hours)
+        request_sender = RequestSender(download_queue, email_address, cadence_hours, os.path.join(output_directory, 'requestsCache.json'))
         image_loader = ImageLoader(download_queue, processing_queue, output_directory, fits_directory)
         output_processor = OutputProcessor(processing_queue, output_directory, fits_directory, samples, noaa_regions, cadence_hours)
 
@@ -330,24 +330,23 @@ def _create_image_output(
         # Map inputs to finally start full process
         logger.debug("Starting requests")
         request_pool.map(request_sender, target_samples) #target_samples[:10]
-        logger.debug("Finished requests")
+        logger.info("Finished requests")
 
         # Wait for image loader workers to finish
-        logger.debug("Waiting for image loader workers to finish")
+        logger.info("Waiting for image loader workers to finish")
         for _ in range(p):
             download_queue.put(None)
         for current_worker_result in image_loader_results:
             current_worker_result.get()
 
         # Wait for output processor workers to finish
-        logger.debug("Waiting for output processor workers to finish")
+        logger.info("Waiting for output processor workers to finish")
         for _ in range(p):
             processing_queue.put(None)
         for current_worker_result in output_processor_results:
             current_worker_result.get()
 
-        logger.debug("All workers finished")
-
+        logger.info("All workers finished")
 
 def _parse_goes_flux(file_path: str) -> pd.DataFrame:
     with open(file_path, "r") as f:
