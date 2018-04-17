@@ -59,13 +59,15 @@ class RequestSender(object):
     RECORD_PARSE_REGEX = re.compile(r"^.+\[(.+)\]\[(.+)\].+$")
     RECORD_DATE_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
 
-    def __init__(self, output_queue: multiprocessing.Queue, notify_email: str, cadence_hours: int, cache_dir: str, manager: multiprocessing.Manager):
+    CACHEPROCESS = None
+
+    def __init__(self, output_queue: multiprocessing.Queue, cache_queue: multiprocessing.Queue, notify_email: str, cadence_hours: int, cache_dir: str):
         self._output_queue = output_queue
         self._notify_email = notify_email
         self._cadence_hours = cadence_hours
         self._cache_dir = cache_dir
-        self._cachingQueue = manager.Queue()
-        self._initCache(manager)
+        self._cachingQueue = cache_queue
+        self._initCache()
 
     def __call__(self, sample_input: Tuple[str, pd.Series]):
         sample_id, sample_values = sample_input
@@ -97,11 +99,9 @@ class RequestSender(object):
                     self._cachingQueue.put((sample_id, request_urls))
                     break
 
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self._cachingProcess.join()
+    def terminate(self):
+        self._cachingQueue.put(None)
+        #self.CACHEPROCESS.join()
 
     def _perform_request(self, sample_id: str, start: dt.datetime, end: dt.datetime) -> List[str]:
         client = drms.Client(email=self._notify_email, verbose=True)
@@ -111,7 +111,7 @@ class RequestSender(object):
         requests = []
         for series_name in self.SERIES_NAMES:
             for hd in [0, 6*30, 10*60+30, 11*60+50]: # [] minutes after input start. (last = 10min before prediction period)
-                qt = start + dt.timedelta(hours=hd)
+                qt = start + dt.timedelta(minutes=hd)
                 query = f"{series_name}[{qt:%Y.%m.%d_%H:%M:%S_TAI}]"
                 if series_name.startswith('hmi.Ic_'):
                     query += '{{continuum}}'
@@ -144,20 +144,22 @@ class RequestSender(object):
 
         return urls
 
-    def _initCache(self, manager):
+    def _initCache(self):
         if not os.path.isfile(self._cache_dir):
             with open(self._cache_dir, "w") as f:
                 json.dump({}, f, iterable_as_array=True)
         with open(self._cache_dir, "r") as f:
             self._answersCache = json.load(f)
-        self._cachingProcess = manager.Process(target=_requestCaching, args=(self._cachingQueue, self._cache_dir))
-        self._cachingProcess.start()
+        cp = multiprocessing.Process(target=_requestCaching, args=(self._cachingQueue, self._cache_dir))
+        cp.start()
 
 def _requestCaching(q, cdir):
     with open(cdir, "r") as f:
         _answersCache = json.load(f)
     while True:
         answer = q.get()
+        if answer is None:
+            break
         _answersCache[answer[0]] = answer[1]
         with open(cdir, "w") as f:
             json.dump(_answersCache, f, iterable_as_array=True)
@@ -390,7 +392,7 @@ class OutputProcessor(object):
             available_times[current_wavelength].append((current_datetime, current_file))
 
         # Assign images to actual time steps
-        time_steps = [(sample_meta_data.start + dt.timedelta(hours=offset), dict()) for offset in [0, 6*30, 10*60+30, 11*60+50]]
+        time_steps = [(sample_meta_data.start + dt.timedelta(minutes=offset), dict()) for offset in [0, 6*30, 10*60+30, 11*60+50]]
         for current_wavelength, current_available_times in available_times.items():
             for current_datetime, current_file in current_available_times:
                 current_step_images = min(time_steps, key=lambda step: abs(step[0] - current_datetime))[1]
