@@ -12,6 +12,8 @@ import math
 import warnings
 import simplejson as json
 
+import traceback
+
 import astropy.coordinates
 import astropy.time
 import astropy.units as u
@@ -58,6 +60,7 @@ class RequestSender(object):
 
     RECORD_PARSE_REGEX = re.compile(r"^.+\[(.+)\]\[(.+)\].+$")
     RECORD_DATE_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
+    RECORD_DATE_FORMAT_HMI = "%Y.%m.%d_%H:%M:%S_TAI"
 
     CACHEPROCESS = None
 
@@ -114,11 +117,11 @@ class RequestSender(object):
                 qt = start + dt.timedelta(minutes=hd)
                 query = f"{series_name}[{qt:%Y.%m.%d_%H:%M:%S_TAI}]"
                 if series_name.startswith('hmi.Ic_'):
-                    query += '{{continuum}}'
+                    query += '{continuum}'
                 elif series_name.startswith('hmi.M_'):
-                    query += '{{magnetogram}}'
+                    query += '{magnetogram}'
                 else:
-                    query += '{{image}}'
+                    query += '{image}'
                 requests.append((client.export(query, method="url_quick", protocol="as-is"), qt))
 
         # Wait for all requests if they have to be processed
@@ -137,8 +140,8 @@ class RequestSender(object):
                         logger.info(f"Invalid record format '{url_row.record}'")
                         continue
 
-                    record_date_raw, _ = record_match.groups()
-                    record_date = dt.datetime.strptime(record_date_raw, self.RECORD_DATE_FORMAT)
+                    record_date_raw, record_wavelength = record_match.groups()
+                    record_date = dt.datetime.strptime(record_date_raw, self.RECORD_DATE_FORMAT_HMI if len(record_wavelength) == 1 else self.RECORD_DATE_FORMAT)
                     if abs(record_date - requested_date) < dt.timedelta(minutes=29):
                         urls.append((url_row.record, url_row.url))
 
@@ -169,6 +172,7 @@ class ImageLoader(object):
     RECORD_PARSE_REGEX = re.compile(r"^.+\[(.+)\]\[(.+)\].+$")
     HMI_PARSE_REGEX = re.compile(r".+{(.+)}$")
     RECORD_DATE_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
+    RECORD_DATE_FORMAT_HMI = "%Y.%m.%d_%H:%M:%S_TAI"
 
     def __init__(
             self,
@@ -227,7 +231,9 @@ class ImageLoader(object):
                 raise Exception(f"Invalid record format '{record}'")
 
             record_date_raw, record_wavelength = record_match.groups()
-            record_date = dt.datetime.strptime(record_date_raw, self.RECORD_DATE_FORMAT)
+
+            record_date = dt.datetime.strptime(record_date_raw, self.RECORD_DATE_FORMAT_HMI if len(
+                record_wavelength) == 1 else self.RECORD_DATE_FORMAT)
 
             if len(record_wavelength) == 1:
                 record_wavelength = self.HMI_PARSE_REGEX.match(record).groups()[0]
@@ -367,6 +373,7 @@ class OutputProcessor(object):
                 print(f'Removed directory {fits_directory}')
             except Exception as e:
                 logger.error(f"Error while processing data for sample {sample_id} (is skipped): {e}")
+                traceback.print_exc()
                 # We'll leave directories be where an error occurred, for examination purposes
 
     def _process_output(self, sample_id: str, input_directory: str, output_directory: str):
@@ -384,7 +391,6 @@ class OutputProcessor(object):
         _, _, region_events = self._noaa_regions[sample_meta_data.noaa_num]
 
         # Create a list of available times per wavelength
-        # TODO: This ignores HMI
         available_times = {wavelength: [] for wavelength in self.IMAGE_PARAMS.keys()}
         for current_file in os.listdir(input_directory):
             current_datetime_raw, current_wavelength = os.path.splitext(current_file)[0].split("_")
@@ -408,7 +414,8 @@ class OutputProcessor(object):
             for current_wavelength, current_file in current_images.items():
                 fits_file = os.path.join(input_directory, current_file)
                 try:
-                    current_map: sunpy.map.sources.AIAMap = sunpy.map.Map(fits_file)
+                    # recognizes a AIAMap, but doesn't automatically result in a HMIMap for HMI Fits
+                    current_map = sunpy.map.Map(fits_file)
                 except Exception as e:
                     logger.error(f"Unable to load file {fits_file}, removing & skipping... {e}")
                     try:
@@ -417,16 +424,17 @@ class OutputProcessor(object):
                         logger.error(f'Was unable to delete file {fits_file}, {e2}')
                     continue
 
-                # Check if map is usable
-                if not self._is_usable(current_map):
-                    logger.warning("Discarding wavelength %s for sample %s", current_wavelength, sample_id)
-                    continue
+                if isinstance(current_map, sunpy.map.sources.AIAMap):
+                    # Check if map is usable
+                    if not self._is_usable(current_map):
+                        logger.warning("Discarding wavelength %s for sample %s", current_wavelength, sample_id)
+                        continue
 
-                # Convert to level 1.5
-                if current_map.processing_level != 1.5:
-                    with warnings.catch_warnings():
-                        warnings.simplefilter("ignore")
-                        current_map = sunpy.instr.aia.aiaprep(current_map)
+                    # Convert to level 1.5
+                    if current_map.processing_level != 1.5:
+                        with warnings.catch_warnings():
+                            warnings.simplefilter("ignore")
+                            current_map = sunpy.instr.aia.aiaprep(current_map)
 
                 # Find coordinates of closest active region event which started before the image
                 image_time = current_map.date
@@ -468,7 +476,7 @@ class OutputProcessor(object):
                 assert img.shape == self.OUTPUT_SHAPE, f'image shape is {img.shape} instead of {self.OUTPUT_SHAPE}'
 
                 # Image processing steps
-                img = self._FITS_to_image(img, current_map)
+                img = self._FITS_to_image(img, current_map, current_wavelength)
                 img_uint8 = (np.round(img * 255)).astype(np.uint8)
 
                 # Save as image
@@ -489,7 +497,7 @@ class OutputProcessor(object):
             and target.meta["ACS_SUNP"] == "YES" \
             and target.meta["QUALITY"] & (1 << 18) == 0  # Calibration flag
 
-    def _FITS_to_image(self, img: np.ndarray, current_map: sunpy.map.sources.AIAMap):
+    def _FITS_to_image(self, img: np.ndarray, current_map: sunpy.map.sources.Map, wavelength: str):
         'Returns 2d array in [0,1] range'
         # Templates:
         # http://www.heliodocs.com/php/xdoc_print.php?file=$SSW/sdo/aia/idl/pubrel/aia_intscale.pro
@@ -497,14 +505,8 @@ class OutputProcessor(object):
         # Actually, decided to go with own visualization.
         # TODO Recalculate the FITS header CRPIX values if need be
         img = np.flipud(img)
-        img = img / (current_map.meta["EXPTIME"] if current_map.meta["EXPTIME"] > 0 else 1) #  normalize for exposure
-        wavelength = str(current_map.meta["wavelnth"])
+        img = img / (current_map.meta["EXPTIME"] if "EXPTIME" in current_map.meta and current_map.meta["EXPTIME"] > 0 else 1) #  normalize for exposure
         pms = self.IMAGE_PARAMS[wavelength]
-        '''if wavelength == '171':
-            img = img - 5
-            img[img < 0.1] = 0.1
-            img = np.clip(np.sqrt(img),1,40)
-        else:'''
         img = np.clip(img, pms['dataMin'], pms['dataMax'])
         if pms['dataScalingType'] == 1:
             img = np.sqrt(img)
