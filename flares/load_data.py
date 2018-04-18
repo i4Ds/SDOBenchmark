@@ -282,7 +282,7 @@ def _create_output(
     # Create meta data file
     meta_file = os.path.join(output_directory, "meta_data.csv")
     # put only id, start, end and peak_flux into csv. Discard noaa_num, type and peak
-    samples[['start','end','peak_flux']].to_csv(meta_file, sep=";", index_label="id")
+    samples[['start','end','peak_flux']].to_csv(meta_file, sep=",", index_label="id")
     logger.info("Wrote meta data file")
 
     _create_image_output(samples, output_directory, fits_directory, email_address, cadence_hours, noaa_regions)
