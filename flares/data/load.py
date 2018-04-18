@@ -99,15 +99,15 @@ class RequestSender(object):
                 else:
                     logger.info(f'received URLs for {sample_id} after {retries} retries')
                     self._output_queue.put((sample_id, request_urls))
+                    # TODO: Only caching without export id.
                     self._cachingQueue.put((sample_id, request_urls))
                     break
 
     def terminate(self):
         self._cachingQueue.put(None)
-        #self.CACHEPROCESS.join()
 
     def _perform_request(self, sample_id: str, start: dt.datetime, end: dt.datetime) -> List[str]:
-        client = drms.Client(email=self._notify_email, verbose=True)
+        client = drms.Client(email=self._notify_email, verbose=False)
         #input_hours = (end - start) // dt.timedelta(hours=1)
 
         # Submit requests
@@ -133,6 +133,8 @@ class RequestSender(object):
                 # Actual request had to be made, wait for result
                 logger.debug("As-is data not available for sample %s, created request %s", sample_id, request.id)
                 request.wait()
+            else:
+                onlyExport = True
 
             if request.status != 4: # Empty set
                 for _, url_row in request.urls.iterrows():
@@ -459,6 +461,10 @@ class OutputProcessor(object):
                         with warnings.catch_warnings():
                             warnings.simplefilter("ignore")
                             current_map = sunpy.instr.aia.aiaprep(current_map)
+                else:
+                    # custom written hmiprep, see https://github.com/sunpy/sunpy/issues/1697
+                    hmi_scale_factor = current_map.scale.x / (0.6 * u.arcsec)
+                    current_map = current_map.rotate(recenter=True, scale=hmi_scale_factor.value, missing=0.0)
 
                 observation_date = current_map.date
                 # formerly current_map.date, which wasn't always present. Also, this is only used for image cropping, therefore some pixels of shift won't matter.
