@@ -319,7 +319,7 @@ class OutputProcessor(object):
         },
         "continuum": {
             'dataMin': 0,
-            'dataMax': 500000,
+            'dataMax': 65535,
             'dataScalingType': 0
         },
         "magnetogram": {
@@ -410,6 +410,8 @@ class OutputProcessor(object):
         # Process each time step
         for current_datetime, current_images in time_steps:
 
+            last_dsun_obs = None
+
             # Process each wavelength
             for current_wavelength, current_file in current_images.items():
                 fits_file = os.path.join(input_directory, current_file)
@@ -424,6 +426,18 @@ class OutputProcessor(object):
                         logger.error(f'Was unable to delete file {fits_file}, {e2}')
                     continue
 
+                if 'date-obs' not in current_map.meta:
+                    # parse the date from the file name
+                    current_datetime_from_file_raw, _ = os.path.splitext(current_file)[0].split("_")
+                    current_map.meta['date-obs'] = dt.datetime.strptime(current_datetime_from_file_raw, "%Y-%m-%dT%H%M%S")
+
+                if 'dsun_obs' not in current_map.meta:
+                    # try to use one of another map. If not available, a default is assigned.
+                    if last_dsun_obs is not None:
+                        current_map.meta['dsun_obs'] = last_dsun_obs
+                else:
+                    last_dsun_obs = current_map.meta['dsun_obs']
+
                 if isinstance(current_map, sunpy.map.sources.AIAMap):
                     # Check if map is usable
                     if not self._is_usable(current_map):
@@ -436,34 +450,9 @@ class OutputProcessor(object):
                             warnings.simplefilter("ignore")
                             current_map = sunpy.instr.aia.aiaprep(current_map)
 
-                # Find coordinates of closest active region event which started before the image
-                image_time = current_map.date
-                tolerance = dt.timedelta(minutes=10)
-                regions_started_before_input = [event for event in region_events if event["starttime"] <= image_time + tolerance]
-                if len(regions_started_before_input) == 0:
-                    print('AHA')
-                closest_region_event = max(
-                    (regions_started_before_input),
-                    key=lambda event: event["starttime"]
-                )
-                region_position = astropy.coordinates.SkyCoord(
-                    float(closest_region_event["hpc_x"]) * u.arcsec,
-                    float(closest_region_event["hpc_y"]) * u.arcsec,
-                    frame="helioprojective",
-                    obstime=closest_region_event["starttime"]
-                )
-                region_position_rotated = sunpy.physics.differential_rotation.solar_rotate_coordinate(
-                    region_position,
-                    image_time
-                )
-
-                # Transform target position to pixels, in carthesian coordinates (origin bottom left)
-                center_x, center_y = current_map.world_to_pixel(region_position_rotated)
-                center_x, center_y = int(center_x.to_value()), int(center_y.to_value())
-                assert center_x - self.OUTPUT_SHAPE[1] / 2 >= 0, f"image out of bounds {center_x}"
-                assert center_y - self.OUTPUT_SHAPE[0] / 2 >= 0, f"image out of bounds {center_y}"
-                assert center_x + self.OUTPUT_SHAPE[1] / 2 < current_map.data.shape[1], f"image out of bounds {center_x}"
-                assert center_y + self.OUTPUT_SHAPE[0] / 2 < current_map.data.shape[0], f"image out of bounds {center_y}"
+                observation_date = current_map.date
+                # formerly current_map.date, which wasn't always present. Also, this is only used for image cropping, therefore some pixels of shift won't matter.
+                center_x, center_y = self._find_image_center(current_map, observation_date, region_events)
 
                 # Cut patch out of image
                 # Sunpy maps assume a cartesian coordinate system which is already incorporated in the pixel conversion
@@ -497,7 +486,37 @@ class OutputProcessor(object):
             and target.meta["ACS_SUNP"] == "YES" \
             and target.meta["QUALITY"] & (1 << 18) == 0  # Calibration flag
 
-    def _FITS_to_image(self, img: np.ndarray, current_map: sunpy.map.sources.Map, wavelength: str):
+    @classmethod
+    def _find_image_center(cls, current_map: sunpy.map.sources.Map, observation_date: dt.datetime, region_events: List[dict] ):
+        # Find coordinates of closest active region event which started before the image
+        tolerance = dt.timedelta(minutes=10)
+        closest_region_event = max(
+            ([event for event in region_events if event["starttime"] <= observation_date + tolerance]),
+            key=lambda event: event["starttime"]
+        )
+        region_position = astropy.coordinates.SkyCoord(
+            float(closest_region_event["hpc_x"]) * u.arcsec,
+            float(closest_region_event["hpc_y"]) * u.arcsec,
+            frame="helioprojective",
+            obstime=closest_region_event["starttime"]
+        )
+        region_position_rotated = sunpy.physics.differential_rotation.solar_rotate_coordinate(
+            region_position,
+            observation_date
+        )
+
+        # Transform target position to pixels, in carthesian coordinates (origin bottom left)
+        center_x, center_y = current_map.world_to_pixel(region_position_rotated)
+        center_x, center_y = int(center_x.to_value()), int(center_y.to_value())
+        assert center_x - cls.OUTPUT_SHAPE[1] / 2 >= 0, f"image out of bounds {center_x}"
+        assert center_y - cls.OUTPUT_SHAPE[0] / 2 >= 0, f"image out of bounds {center_y}"
+        assert center_x + cls.OUTPUT_SHAPE[1] / 2 < current_map.data.shape[1], f"image out of bounds {center_x}"
+        assert center_y + cls.OUTPUT_SHAPE[0] / 2 < current_map.data.shape[0], f"image out of bounds {center_y}"
+
+        return (center_x, center_y)
+
+    @classmethod
+    def _FITS_to_image(cls, img: np.ndarray, current_map: sunpy.map.sources.Map, wavelength: str):
         'Returns 2d array in [0,1] range'
         # Templates:
         # http://www.heliodocs.com/php/xdoc_print.php?file=$SSW/sdo/aia/idl/pubrel/aia_intscale.pro
@@ -506,7 +525,7 @@ class OutputProcessor(object):
         # TODO Recalculate the FITS header CRPIX values if need be
         img = np.flipud(img)
         img = img / (current_map.meta["EXPTIME"] if "EXPTIME" in current_map.meta and current_map.meta["EXPTIME"] > 0 else 1) #  normalize for exposure
-        pms = self.IMAGE_PARAMS[wavelength]
+        pms = cls.IMAGE_PARAMS[wavelength]
         img = np.clip(img, pms['dataMin'], pms['dataMax'])
         if pms['dataScalingType'] == 1:
             img = np.sqrt(img)
