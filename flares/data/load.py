@@ -116,13 +116,15 @@ class RequestSender(object):
             for hd in [0, 6*30, 10*60+30, 11*60+50]: # [] minutes after input start. (last = 10min before prediction period)
                 qt = start + dt.timedelta(minutes=hd)
                 query = f"{series_name}[{qt:%Y.%m.%d_%H:%M:%S_TAI}]"
+                protocol = "fits" # For HMI, "fits" generates more keywords that we require
                 if series_name.startswith('hmi.Ic_'):
                     query += '{continuum}'
                 elif series_name.startswith('hmi.M_'):
                     query += '{magnetogram}'
                 else:
                     query += '{image}'
-                requests.append((client.export(query, method="url_quick", protocol="as-is"), qt))
+                    protocol = "as-is"
+                requests.append((client.export(query, method="url_quick", protocol=protocol), qt))
 
         # Wait for all requests if they have to be processed
         urls = []
@@ -531,7 +533,10 @@ class OutputProcessor(object):
         # https://github.com/Helioviewer-Project/jp2gen/blob/master/idl/sdo/aia/hv_aia_list2jp2_gs2.pro
         # Actually, decided to go with own visualization.
         # TODO Recalculate the FITS header CRPIX values if need be
-        img = np.flipud(img)
+        if isinstance(current_map, sunpy.map.sources.AIAMap):
+            img = np.flipud(img)
+        else:
+            img = np.fliplr(img)
         img = img / (current_map.meta["EXPTIME"] if "EXPTIME" in current_map.meta and current_map.meta["EXPTIME"] > 0 else 1) #  normalize for exposure
         pms = cls.IMAGE_PARAMS[wavelength]
         img = np.clip(img, pms['dataMin'], pms['dataMax'])
