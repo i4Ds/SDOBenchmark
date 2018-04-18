@@ -411,6 +411,7 @@ class OutputProcessor(object):
         for current_datetime, current_images in time_steps:
 
             last_dsun_obs = None
+            last_crlt_obs = None
 
             # Process each wavelength
             for current_wavelength, current_file in current_images.items():
@@ -437,6 +438,13 @@ class OutputProcessor(object):
                         current_map.meta['dsun_obs'] = last_dsun_obs
                 else:
                     last_dsun_obs = current_map.meta['dsun_obs']
+
+                if 'crlt_obs' not in current_map.meta:
+                    # required for heliographic_latitude
+                    if last_crlt_obs is not None:
+                        current_map.meta['crlt_obs'] = last_crlt_obs
+                else:
+                    last_crlt_obs = current_map.meta['crlt_obs']
 
                 if isinstance(current_map, sunpy.map.sources.AIAMap):
                     # Check if map is usable
