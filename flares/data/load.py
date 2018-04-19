@@ -26,6 +26,7 @@ import sunpy.instr.aia
 import sunpy.map
 import sunpy.physics.differential_rotation
 from aia_lib import mov_img as aia_mov_img
+from astropy.io import fits
 
 from PIL import Image
 
@@ -57,6 +58,7 @@ class RequestSender(object):
         "hmi.Ic_45s",
         "hmi.M_45s"
     )
+    HMI_KEYS = 'crlt_obs, crln_obs, ctype1, ctype2, cunit1, cunit2, crval1, crval2, cdelt1, cdelt2, crpix1, crpix2, crota2, date, instrume, wcsname, dsun_ref, rsun_ref, car_rot, obs_vr, obs_vw, obs_vn, rsun_obs, t_obs, t_rec, dsun_obs'.upper()
 
     RECORD_PARSE_REGEX = re.compile(r"^.+\[(.+)\]\[(.+)\].+$")
     RECORD_DATE_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
@@ -76,32 +78,24 @@ class RequestSender(object):
         sample_id, sample_values = sample_input
         logger.debug("Requesting data for sample %s", sample_id)
 
-        if sample_id in self._answersCache:
-            request_urls = self._answersCache[sample_id]
-            logger.info(f'received URLs for {sample_id} from cache')
-            self._output_queue.put((sample_id, request_urls))
-        else:
-            retries = 0
-            while True:
-                try:
-                    # Perform request and provide URLs as result
-                    request_urls = self._perform_request(sample_id, sample_values.start, sample_values.end)
-                except Exception as e:
-                    retries += 1
-                    #logger.info("Error fetching URLs for sample %s : %s", sample_id, e)
-                    if retries % 100 == 0:
-                        logger.info(f'Failed fetching URLs for sample %s after {retries} retries: %s', sample_id, e)
-                        if isinstance(e, URLError) and isinstance(e.reason, ConnectionRefusedError):
-                            logger.info('waiting for a while longer...')
-                        else:
-                            break
-                    time.sleep(0.5)
-                else:
-                    logger.info(f'received URLs for {sample_id} after {retries} retries')
-                    self._output_queue.put((sample_id, request_urls))
-                    # TODO: Only caching without export id.
-                    self._cachingQueue.put((sample_id, request_urls))
-                    break
+        retries = 0
+        while True:
+            try:
+                # Perform request and provide URLs as result
+                request_urls = self._perform_request(sample_id, sample_values.start, sample_values.end)
+            except Exception as e:
+                retries += 1
+                if retries % 100 == 0:
+                    logger.info(f'Failed fetching URLs for sample %s after {retries} retries: %s', sample_id, e)
+                    if isinstance(e, URLError) and isinstance(e.reason, ConnectionRefusedError):
+                        logger.info('waiting for a while longer...')
+                    else:
+                        break
+                time.sleep(0.5)
+            else:
+                logger.info(f'received URLs for {sample_id} after {retries} retries')
+                self._output_queue.put((sample_id, request_urls))
+                break
 
     def terminate(self):
         self._cachingQueue.put(None)
@@ -116,38 +110,63 @@ class RequestSender(object):
             for hd in [0, 6*30, 10*60+30, 11*60+50]: # [] minutes after input start. (last = 10min before prediction period)
                 qt = start + dt.timedelta(minutes=hd)
                 query = f"{series_name}[{qt:%Y.%m.%d_%H:%M:%S_TAI}]"
-                protocol = "fits" # For HMI, "fits" generates more keywords that we require
+                seg = 'image'
+
                 if series_name.startswith('hmi.Ic_'):
-                    query += '{continuum}'
+                    seg = 'continuum'
                 elif series_name.startswith('hmi.M_'):
-                    query += '{magnetogram}'
+                    seg = 'magnetogram'
+
+                query = query + '{' + seg + '}'
+
+                if query in self._answersCache:
+                    requests.append((self._answersCache[query], qt, query))
                 else:
-                    query += '{image}'
-                    protocol = "as-is"
-                requests.append((client.export(query, method="url_quick", protocol=protocol), qt))
+                    requests.append((client.export(query, method="url_quick", protocol="as-is"), qt, query))
 
         # Wait for all requests if they have to be processed
         urls = []
-        for request, requested_date in requests:
-            if request.id is not None:
-                # Actual request had to be made, wait for result
-                logger.debug("As-is data not available for sample %s, created request %s", sample_id, request.id)
-                request.wait()
+        for request, requested_date, query in requests:
+            if isinstance(request, drms.ExportRequest): # not cached
+                is_export = False
+                if request.id is not None:
+                    # Actual request had to be made, wait for result
+                    logger.debug("As-is data not available for sample %s, created request %s", sample_id, request.id)
+                    is_export = True
+                    request.wait()
+                else:
+                    self._cachingQueue.put((sample_id, None if request.status != 4 else None))
+
+                if request.status == 4: # Empty set
+                    self._cachingQueue.put((query, None))
+                    continue
+
+                record = request.urls.iloc[0].record
+                url = request.urls.iloc[0].url
+                if not is_export:
+                    self._cachingQueue.put((query, (record, url)))
             else:
-                onlyExport = True
+                if request is None:
+                    continue
+                record, url = request
 
-            if request.status != 4: # Empty set
-                for _, url_row in request.urls.iterrows():
-                    record_match = self.RECORD_PARSE_REGEX.match(url_row.record)
+            record_match = self.RECORD_PARSE_REGEX.match(record)
 
-                    if record_match is None:
-                        logger.info(f"Invalid record format '{url_row.record}'")
-                        continue
+            if record_match is None:
+                logger.info(f"Invalid record format '{record}'")
+                continue
 
-                    record_date_raw, record_wavelength = record_match.groups()
-                    record_date = dt.datetime.strptime(record_date_raw, self.RECORD_DATE_FORMAT_HMI if len(record_wavelength) == 1 else self.RECORD_DATE_FORMAT)
-                    if abs(record_date - requested_date) < dt.timedelta(minutes=29):
-                        urls.append((url_row.record, url_row.url))
+            record_date_raw, record_wavelength = record_match.groups()
+            is_HMI = len(record_wavelength) == 1
+
+            extra_keys = None
+            if is_HMI:
+                extra_keys = client.query(query.split('{')[0],key=self.HMI_KEYS)
+                extra_keys = extra_keys.iloc[0]
+
+            record_date = dt.datetime.strptime(record_date_raw, self.RECORD_DATE_FORMAT_HMI if is_HMI else self.RECORD_DATE_FORMAT)
+            if abs(record_date - requested_date) < dt.timedelta(minutes=29):
+                urls.append((record, url, extra_keys))
 
         return urls
 
@@ -177,6 +196,7 @@ class ImageLoader(object):
     HMI_PARSE_REGEX = re.compile(r".+{(.+)}$")
     RECORD_DATE_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
     RECORD_DATE_FORMAT_HMI = "%Y.%m.%d_%H:%M:%S_TAI"
+    DATE_KEYS = ["DATE", "T_OBS", "T_REC"]
 
     def __init__(
             self,
@@ -215,7 +235,7 @@ class ImageLoader(object):
 
                 except Exception as e:
                     logger.error("Error while downloading data for sample %s (is skipped): %s", sample_id, e)
-
+                    traceback.print_exc()
                     # Delete sample directory because it contains inconsistent data
                     # TODO: Just delete this 1 input data, not the entire fits folder...
                     #shutil.rmtree(sample_directory, ignore_errors=True)
@@ -228,7 +248,7 @@ class ImageLoader(object):
 
         logger.debug(f'Downloading {len(records)} FITS files into {fits_directory}...')
 
-        for record, url in records:
+        for record, url, extra_keys in records:
             record_match = self.RECORD_PARSE_REGEX.match(record)
 
             if record_match is None:
@@ -248,7 +268,7 @@ class ImageLoader(object):
                 retries = 0
                 while True:
                     try:
-                        urllib.request.urlretrieve(url, os.path.join(fits_directory, output_file_name))
+                        urllib.request.urlretrieve(url, fp)
                     except Exception as e:
                         retries += 1
                         #logger.info("Error fetching FITS %s : %s", url, e)
@@ -261,6 +281,19 @@ class ImageLoader(object):
                         time.sleep(0.5)
                     else:
                         logger.info(f'{retries} retries')
+                        # extend HMI Fits with extra keys
+                        if extra_keys is not None:
+                            data, header = fits.getdata(fp, header=True)
+                            if header['BITPIX'] == -32 or header['BITPIX'] == -64:
+                                del header['BLANK'] # https://github.com/astropy/astropy/issues/7253
+                            for k in extra_keys.iteritems():
+                                if k[1] == 'Invalid KeyLink':
+                                    logger.info(f'Invalid KeyLink for {k[0]}, {fp}')
+                                    continue
+                                header[k[0]] = k[1] if k[0].upper() not in self.DATE_KEYS else drms.to_datetime(k[1]).to_pydatetime().strftime("%Y-%m-%dT%H%M%S")
+                            fits.writeto(fp, data, header, overwrite=True)
+                            print('Wrote extra keys to ' + fp)
+
                         break
             else:
                 logger.debug(f'Already found {fp}')
@@ -416,6 +449,7 @@ class OutputProcessor(object):
 
             last_dsun_obs = None
             last_crlt_obs = None
+            saved_centers = []
 
             # Process each wavelength
             for current_wavelength, current_file in current_images.items():
@@ -435,7 +469,7 @@ class OutputProcessor(object):
                     # parse the date from the file name
                     current_datetime_from_file_raw, _ = os.path.splitext(current_file)[0].split("_")
                     current_map.meta['date-obs'] = dt.datetime.strptime(current_datetime_from_file_raw, "%Y-%m-%dT%H%M%S")
-
+                '''
                 if 'dsun_obs' not in current_map.meta:
                     # try to use one of another map. If not available, a default is assigned.
                     if last_dsun_obs is not None:
@@ -448,7 +482,7 @@ class OutputProcessor(object):
                     if last_crlt_obs is not None:
                         current_map.meta['crlt_obs'] = last_crlt_obs
                 else:
-                    last_crlt_obs = current_map.meta['crlt_obs']
+                    last_crlt_obs = current_map.meta['crlt_obs']'''
 
                 if isinstance(current_map, sunpy.map.sources.AIAMap):
                     # Check if map is usable
@@ -463,12 +497,13 @@ class OutputProcessor(object):
                             current_map = sunpy.instr.aia.aiaprep(current_map)
                 else:
                     # custom written hmiprep, see https://github.com/sunpy/sunpy/issues/1697
-                    hmi_scale_factor = current_map.scale.x / (0.6 * u.arcsec)
+                    hmi_scale_factor = current_map.scale.axis1 / (0.6 * u.arcsec)
                     current_map = current_map.rotate(recenter=True, scale=hmi_scale_factor.value, missing=0.0)
 
                 observation_date = current_map.date
                 # formerly current_map.date, which wasn't always present. Also, this is only used for image cropping, therefore some pixels of shift won't matter.
                 center_x, center_y = self._find_image_center(current_map, observation_date, region_events)
+                saved_centers.append((center_x,center_y))
 
                 # Cut patch out of image
                 # Sunpy maps assume a cartesian coordinate system which is already incorporated in the pixel conversion
@@ -489,7 +524,7 @@ class OutputProcessor(object):
                 im = Image.fromarray(img_uint8)
                 im = im.resize((256,256), Image.BICUBIC)
                 im.save(output_file_path, "jpeg")
-
+            print('Saved centers: ' + str(saved_centers))
         logger.info("Created sample %s output", sample_id)
 
     @classmethod
@@ -539,10 +574,11 @@ class OutputProcessor(object):
         # https://github.com/Helioviewer-Project/jp2gen/blob/master/idl/sdo/aia/hv_aia_list2jp2_gs2.pro
         # Actually, decided to go with own visualization.
         # TODO Recalculate the FITS header CRPIX values if need be
-        if isinstance(current_map, sunpy.map.sources.AIAMap):
+        img = np.flipud(img)
+        '''if isinstance(current_map, sunpy.map.sources.AIAMap):
             img = np.flipud(img)
         else:
-            img = np.fliplr(img)
+            img = np.fliplr(img)'''
         img = img / (current_map.meta["EXPTIME"] if "EXPTIME" in current_map.meta and current_map.meta["EXPTIME"] > 0 else 1) #  normalize for exposure
         pms = cls.IMAGE_PARAMS[wavelength]
         img = np.clip(img, pms['dataMin'], pms['dataMax'])
