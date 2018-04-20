@@ -486,8 +486,10 @@ class OutputProcessor(object):
                 else:
                     # custom written hmiprep, see:
                     # https://github.com/sunpy/sunpy/issues/1697, https://github.com/sunpy/sunpy/issues/2331
-                    hmi_scale_factor = current_map.scale.axis1 / (0.6 * u.arcsec)
-                    current_map = current_map.rotate(recenter=True, scale=hmi_scale_factor.value, missing=0.0)
+                    with warnings.catch_warnings():
+                        warnings.simplefilter("ignore")
+                        hmi_scale_factor = current_map.scale.axis1 / (0.6 * u.arcsec)
+                        current_map = current_map.rotate(recenter=True, scale=hmi_scale_factor.value, missing=0.0)
 
                 observation_date = current_map.date
                 # formerly current_map.date, which wasn't always present. Also, this is only used for image cropping, therefore some pixels of shift won't matter.
