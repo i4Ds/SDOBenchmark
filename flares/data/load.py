@@ -46,9 +46,9 @@ def _sample_images_exist(dir_path: str, series_name: str, query_time: dt.datetim
     if not os.path.isdir(dir_path):
         return False
     wavelengths = {
-        "aia.lev1_vis_1h": ['94', '131', '171', '193', '211', '304', '355'],
+        "aia.lev1_euv_12s": ['94', '131', '171', '193', '211', '304', '355'],
         "aia.lev1_uv_24s": ['1600', '1700'],
-        "aia.lev1_euv_12s": ['4500'],
+        "aia.lev1_vis_1h": ['4500'],
         "hmi.Ic_45s": ['continuum'],
         "hmi.M_45s" : ['magnetogram']
     }
