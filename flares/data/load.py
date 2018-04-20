@@ -18,19 +18,15 @@ import astropy.coordinates
 import astropy.time
 import astropy.units as u
 import drms
-from drms import DrmsExportError
 import numpy as np
 import pandas as pd
 import sunpy.coordinates
 import sunpy.instr.aia
 import sunpy.map
 import sunpy.physics.differential_rotation
-from aia_lib import mov_img as aia_mov_img
 from astropy.io import fits
 
 from PIL import Image
-
-from flares import util
 
 logger = logging.getLogger(__name__)
 
@@ -271,7 +267,6 @@ class ImageLoader(object):
                         urllib.request.urlretrieve(url, fp)
                     except Exception as e:
                         retries += 1
-                        #logger.info("Error fetching FITS %s : %s", url, e)
                         if retries % 100 == 0:
                             logger.info(f'Failed fetching FITS %s after {retries} retries: %s', url, e)
                             if isinstance(e, URLError) and isinstance(e.reason, ConnectionRefusedError):
@@ -283,16 +278,28 @@ class ImageLoader(object):
                         logger.info(f'{retries} retries')
                         # extend HMI Fits with extra keys
                         if extra_keys is not None:
-                            data, header = fits.getdata(fp, header=True)
-                            if header['BITPIX'] == -32 or header['BITPIX'] == -64:
-                                del header['BLANK'] # https://github.com/astropy/astropy/issues/7253
-                            for k in extra_keys.iteritems():
-                                if k[1] == 'Invalid KeyLink':
-                                    logger.info(f'Invalid KeyLink for {k[0]}, {fp}')
-                                    continue
-                                header[k[0]] = k[1] if k[0].upper() not in self.DATE_KEYS else drms.to_datetime(k[1]).to_pydatetime().strftime("%Y-%m-%dT%H%M%S")
-                            fits.writeto(fp, data, header, overwrite=True)
-                            print('Wrote extra keys to ' + fp)
+                            try:
+                                data, header = fits.getdata(fp, header=True)
+                                if header['BITPIX'] == -32 or header['BITPIX'] == -64:
+                                    del header['BLANK'] # https://github.com/astropy/astropy/issues/7253
+                                for k in extra_keys.iteritems():
+                                    if k[1] == 'Invalid KeyLink':
+                                        logger.warning(f'Invalid KeyLink for {k[0]}, {fp}')
+                                        continue
+                                    if k[0].upper() not in self.DATE_KEYS:
+                                        header[k[0]] = k[1]
+                                    else:
+                                        pdt = drms.to_datetime(k[1]).to_pydatetime()
+                                        if pdt is not pd.NaT:
+                                            header[k[0]] = pdt.strftime("%Y-%m-%dT%H%M%S")
+                                fits.writeto(fp, data, header, overwrite=True)
+                            except Exception as e:
+                                logger.error(f"Unable to extend HMI file {fp}, removing & skipping... {e}")
+                                try:
+                                    os.remove(fp)
+                                except Exception as e2:
+                                    logger.error(f'Was unable to delete file {fp}, {e2}')
+                                continue
 
                         break
             else:
@@ -365,8 +372,6 @@ class OutputProcessor(object):
             'dataScalingType': 0
         }
     }
-
-
 
     OUTPUT_SHAPE = (512, 512)
 
@@ -447,10 +452,6 @@ class OutputProcessor(object):
         # Process each time step
         for current_datetime, current_images in time_steps:
 
-            last_dsun_obs = None
-            last_crlt_obs = None
-            saved_centers = []
-
             # Process each wavelength
             for current_wavelength, current_file in current_images.items():
                 fits_file = os.path.join(input_directory, current_file)
@@ -467,22 +468,9 @@ class OutputProcessor(object):
 
                 if 'date-obs' not in current_map.meta:
                     # parse the date from the file name
+                    # TODO is current_map.date == date-obs?
                     current_datetime_from_file_raw, _ = os.path.splitext(current_file)[0].split("_")
                     current_map.meta['date-obs'] = dt.datetime.strptime(current_datetime_from_file_raw, "%Y-%m-%dT%H%M%S")
-                '''
-                if 'dsun_obs' not in current_map.meta:
-                    # try to use one of another map. If not available, a default is assigned.
-                    if last_dsun_obs is not None:
-                        current_map.meta['dsun_obs'] = last_dsun_obs
-                else:
-                    last_dsun_obs = current_map.meta['dsun_obs']
-
-                if 'crlt_obs' not in current_map.meta:
-                    # required for heliographic_latitude
-                    if last_crlt_obs is not None:
-                        current_map.meta['crlt_obs'] = last_crlt_obs
-                else:
-                    last_crlt_obs = current_map.meta['crlt_obs']'''
 
                 if isinstance(current_map, sunpy.map.sources.AIAMap):
                     # Check if map is usable
@@ -496,14 +484,14 @@ class OutputProcessor(object):
                             warnings.simplefilter("ignore")
                             current_map = sunpy.instr.aia.aiaprep(current_map)
                 else:
-                    # custom written hmiprep, see https://github.com/sunpy/sunpy/issues/1697
+                    # custom written hmiprep, see:
+                    # https://github.com/sunpy/sunpy/issues/1697, https://github.com/sunpy/sunpy/issues/2331
                     hmi_scale_factor = current_map.scale.axis1 / (0.6 * u.arcsec)
                     current_map = current_map.rotate(recenter=True, scale=hmi_scale_factor.value, missing=0.0)
 
                 observation_date = current_map.date
                 # formerly current_map.date, which wasn't always present. Also, this is only used for image cropping, therefore some pixels of shift won't matter.
                 center_x, center_y = self._find_image_center(current_map, observation_date, region_events)
-                saved_centers.append((center_x,center_y))
 
                 # Cut patch out of image
                 # Sunpy maps assume a cartesian coordinate system which is already incorporated in the pixel conversion
@@ -524,7 +512,7 @@ class OutputProcessor(object):
                 im = Image.fromarray(img_uint8)
                 im = im.resize((256,256), Image.BICUBIC)
                 im.save(output_file_path, "jpeg")
-            print('Saved centers: ' + str(saved_centers))
+
         logger.info("Created sample %s output", sample_id)
 
     @classmethod
@@ -572,13 +560,9 @@ class OutputProcessor(object):
         # Templates:
         # http://www.heliodocs.com/php/xdoc_print.php?file=$SSW/sdo/aia/idl/pubrel/aia_intscale.pro
         # https://github.com/Helioviewer-Project/jp2gen/blob/master/idl/sdo/aia/hv_aia_list2jp2_gs2.pro
-        # Actually, decided to go with own visualization.
+        # Actually, decided to go with own clipping.
         # TODO Recalculate the FITS header CRPIX values if need be
         img = np.flipud(img)
-        '''if isinstance(current_map, sunpy.map.sources.AIAMap):
-            img = np.flipud(img)
-        else:
-            img = np.fliplr(img)'''
         img = img / (current_map.meta["EXPTIME"] if "EXPTIME" in current_map.meta and current_map.meta["EXPTIME"] > 0 else 1) #  normalize for exposure
         pms = cls.IMAGE_PARAMS[wavelength]
         img = np.clip(img, pms['dataMin'], pms['dataMax'])
