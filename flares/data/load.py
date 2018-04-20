@@ -163,7 +163,7 @@ class RequestSender(object):
                     continue
 
                 result = []
-                for _, url_row in request.urls.iteritems():
+                for _, url_row in request.urls.iterrows():
                     result.append((url_row.record, url_row.url))
                 if not is_specific_export:
                     self._cachingQueue.put((query, result))
