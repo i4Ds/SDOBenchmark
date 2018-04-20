@@ -42,12 +42,35 @@ def sample_exists(dir_path: str, expectedFiles=48) -> bool:
         return True
     return False
 
+def _sample_images_exist(dir_path: str, series_name: str, query_time: dt.datetime):
+    if not os.path.isdir(dir_path):
+        return False
+    wavelengths = {
+        "aia.lev1_vis_1h": ['94', '131', '171', '193', '211', '304', '355'],
+        "aia.lev1_uv_24s": ['1600', '1700'],
+        "aia.lev1_euv_12s": ['4500'],
+        "hmi.Ic_45s": ['continuum'],
+        "hmi.M_45s" : ['magnetogram']
+    }
+    wl = wavelengths[series_name]
+    for img in [name for name in os.listdir(dir_path) if name.endswith('.jpg')]:
+        img_datetime_raw, img_wavelength = os.path.splitext(img)[0].split("__")
+        # is the image one of our wavelengths we search?
+        if img_wavelength in wl:
+            # is the image close enough in time?
+            img_datetime = dt.datetime.strptime(img_datetime_raw, "%Y-%m-%dT%H%M%S")
+            if abs(img_datetime - query_time) < dt.timedelta(minutes=15):
+                # remove from the search wavelengths, check whether we've found the all
+                wl.remove(img_wavelength)
+                if len(wl) == 0:
+                    return True
+    return False
+
 
 class RequestSender(object):
     """Downloads FITS URLs for later use in the ImageDownloader"""
     # http://drms.readthedocs.io/en/stable/tutorial.html
     SERIES_NAMES = (
-        # TODO: HMI
         "aia.lev1_vis_1h",
         "aia.lev1_uv_24s",
         "aia.lev1_euv_12s",
@@ -62,8 +85,9 @@ class RequestSender(object):
 
     CACHEPROCESS = None
 
-    def __init__(self, output_queue: multiprocessing.Queue, cache_queue: multiprocessing.Queue, notify_email: str, cadence_hours: int, cache_dir: str):
+    def __init__(self, output_queue: multiprocessing.Queue, cache_queue: multiprocessing.Queue, output_directory: str, notify_email: str, cadence_hours: int, cache_dir: str):
         self._output_queue = output_queue
+        self._output_directory = output_directory
         self._notify_email = notify_email
         self._cadence_hours = cadence_hours
         self._cache_dir = cache_dir
@@ -100,69 +124,72 @@ class RequestSender(object):
         client = drms.Client(email=self._notify_email, verbose=False)
         #input_hours = (end - start) // dt.timedelta(hours=1)
 
+        fp = sample_path(sample_id, self._output_directory)
+
         # Submit requests
         requests = []
         for series_name in self.SERIES_NAMES:
             for hd in [0, 6*30, 10*60+30, 11*60+50]: # [] minutes after input start. (last = 10min before prediction period)
                 qt = start + dt.timedelta(minutes=hd)
-                query = f"{series_name}[{qt:%Y.%m.%d_%H:%M:%S_TAI}]"
-                seg = 'image'
+                if not _sample_images_exist(fp, series_name, qt):
+                    query = f"{series_name}[{qt:%Y.%m.%d_%H:%M:%S_TAI}]"
+                    seg = 'image'
 
-                if series_name.startswith('hmi.Ic_'):
-                    seg = 'continuum'
-                elif series_name.startswith('hmi.M_'):
-                    seg = 'magnetogram'
+                    if series_name.startswith('hmi.Ic_'):
+                        seg = 'continuum'
+                    elif series_name.startswith('hmi.M_'):
+                        seg = 'magnetogram'
 
-                query = query + '{' + seg + '}'
+                    query = query + '{' + seg + '}'
 
-                if query in self._answersCache:
-                    requests.append((self._answersCache[query], qt, query))
-                else:
-                    requests.append((client.export(query, method="url_quick", protocol="as-is"), qt, query))
+                    if query in self._answersCache:
+                        requests.append((self._answersCache[query], qt, query))
+                    else:
+                        requests.append((client.export(query, method="url_quick", protocol="as-is"), qt, query))
 
         # Wait for all requests if they have to be processed
         urls = []
         for request, requested_date, query in requests:
             if isinstance(request, drms.ExportRequest): # not cached
-                is_export = False
+                is_specific_export = False # valid only for a short time?
                 if request.id is not None:
                     # Actual request had to be made, wait for result
                     logger.debug("As-is data not available for sample %s, created request %s", sample_id, request.id)
-                    is_export = True
+                    is_specific_export = True
                     request.wait()
-                else:
-                    self._cachingQueue.put((sample_id, None if request.status != 4 else None))
 
                 if request.status == 4: # Empty set
                     self._cachingQueue.put((query, None))
                     continue
 
-                record = request.urls.iloc[0].record
-                url = request.urls.iloc[0].url
-                if not is_export:
-                    self._cachingQueue.put((query, (record, url)))
+                result = []
+                for _, url_row in request.urls.iteritems():
+                    result.append((url_row.record, url_row.url))
+                if not is_specific_export:
+                    self._cachingQueue.put((query, result))
             else:
                 if request is None:
                     continue
-                record, url = request
+                result = request
 
-            record_match = self.RECORD_PARSE_REGEX.match(record)
+            for record, url in result:
+                record_match = self.RECORD_PARSE_REGEX.match(record)
 
-            if record_match is None:
-                logger.info(f"Invalid record format '{record}'")
-                continue
+                if record_match is None:
+                    logger.info(f"Invalid record format '{record}'")
+                    continue
 
-            record_date_raw, record_wavelength = record_match.groups()
-            is_HMI = len(record_wavelength) == 1
+                record_date_raw, record_wavelength = record_match.groups()
+                is_HMI = len(record_wavelength) == 1
 
-            extra_keys = None
-            if is_HMI:
-                extra_keys = client.query(query.split('{')[0],key=self.HMI_KEYS)
-                extra_keys = extra_keys.iloc[0]
+                extra_keys = None
+                if is_HMI:
+                    extra_keys = client.query(query.split('{')[0],key=self.HMI_KEYS)
+                    extra_keys = extra_keys.iloc[0]
 
-            record_date = dt.datetime.strptime(record_date_raw, self.RECORD_DATE_FORMAT_HMI if is_HMI else self.RECORD_DATE_FORMAT)
-            if abs(record_date - requested_date) < dt.timedelta(minutes=29):
-                urls.append((record, url, extra_keys))
+                record_date = dt.datetime.strptime(record_date_raw, self.RECORD_DATE_FORMAT_HMI if is_HMI else self.RECORD_DATE_FORMAT)
+                if abs(record_date - requested_date) < dt.timedelta(minutes=15):
+                    urls.append((record, url, extra_keys))
 
         return urls
 
@@ -480,16 +507,24 @@ class OutputProcessor(object):
 
                     # Convert to level 1.5
                     if current_map.processing_level != 1.5:
-                        with warnings.catch_warnings():
-                            warnings.simplefilter("ignore")
-                            current_map = sunpy.instr.aia.aiaprep(current_map)
+                        try:
+                            with warnings.catch_warnings():
+                                warnings.simplefilter("ignore")
+                                current_map = sunpy.instr.aia.aiaprep(current_map)
+                        except Exception as e:
+                            logger.error(f'aia_prep failed: {fits_file}, {e}')
+                            continue
                 else:
                     # custom written hmiprep, see:
                     # https://github.com/sunpy/sunpy/issues/1697, https://github.com/sunpy/sunpy/issues/2331
-                    with warnings.catch_warnings():
-                        warnings.simplefilter("ignore")
-                        hmi_scale_factor = current_map.scale.axis1 / (0.6 * u.arcsec)
-                        current_map = current_map.rotate(recenter=True, scale=hmi_scale_factor.value, missing=0.0)
+                    try:
+                        with warnings.catch_warnings():
+                            warnings.simplefilter("ignore")
+                            hmi_scale_factor = current_map.scale.axis1 / (0.6 * u.arcsec)
+                            current_map = current_map.rotate(recenter=True, scale=hmi_scale_factor.value, missing=0.0)
+                    except Exception as e:
+                        logger.error(f'hmi_prep failed: {fits_file}, {e}')
+                        continue
 
                 observation_date = current_map.date
                 # formerly current_map.date, which wasn't always present. Also, this is only used for image cropping, therefore some pixels of shift won't matter.
@@ -530,7 +565,7 @@ class OutputProcessor(object):
     @classmethod
     def _find_image_center(cls, current_map: sunpy.map.sources.Map, observation_date: dt.datetime, region_events: List[dict] ):
         # Find coordinates of closest active region event which started before the image
-        tolerance = dt.timedelta(minutes=10)
+        tolerance = dt.timedelta(minutes=15)
         closest_region_event = max(
             ([event for event in region_events if event["starttime"] <= observation_date + tolerance]),
             key=lambda event: event["starttime"]
