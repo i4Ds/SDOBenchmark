@@ -1,1 +1,4 @@
 theme: jekyll-theme-tactile
+title: SDOBenchmark
+description: Machine learning dataset for predicting solar flares
+show_downloads: true
