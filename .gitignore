@@ -1,11 +1,11 @@
-html/
-docs/
-flares/
-notebooks/
-README.md
-SETUP.md
-requirements.txt
-_config.yml
+/html/
+/docs/
+/flares/
+/notebooks/
+/README.md
+/SETUP.md
+/requirements.txt
+/_config.yml
 
 # Created by https://www.gitignore.io/api/linux,python,pycharm+all
 
