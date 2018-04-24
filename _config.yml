@@ -33,11 +33,11 @@
 title: SDOBenchmark
 subtitle: Solar flare prediction image dataset
 description: >- # this means to ignore newlines until "baseurl:"
-  This is the demo site for a Jekyll theme version of
-  HTML5 UP's sleek, responsive site template Prologue.
+  SDOBenchmark is an image dataset for
+  solar flare predictions.
 author: Roman Bolzern
-email: 
-avatar: assets/images/avatar.jpg
+email:
+avatar: assets/images/avatar.png
 
 # You'll want to customize url and baseurl for your own site:
 baseurl: "/SDOBenchmark/" # the subpath of your site, e.g. /blog
@@ -51,7 +51,7 @@ instagram_url:
 linkedin_url:
 pinterest_url:
 slack_url:
-twitter_url:
+twitter_url: https://twitter.com/fhnw_i4ds
 
 # Google Analytics Tracking ID goes here:
 google_analytics:

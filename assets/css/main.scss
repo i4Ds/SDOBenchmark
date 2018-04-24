@@ -1,4 +1,180 @@
----
-# Only the main Sass file needs front matter (the dashes are enough)
+--- 
+# Only the main Sass file needs front matter (the dashes are enough) 
 ---
 @import "jekyll-theme-prologue";
+
+#intro header > p {
+    border: 1px solid #808080;
+    background-color: rgba(0, 0, 0, 0.5);
+}
+
+#datasetStructure {
+    position: relative;
+    height: 21em;
+
+    > div {
+        position: absolute;
+    }
+
+    .wl131, .wl171, .wl1600, .wlmagnetogram {
+        width: 10em;
+
+        @include vendor('transition', 'all 0.2s ease-in-out');
+
+        &:hover {
+            z-index: 5;
+            width: 12em;
+
+            > image {
+                width: 12em;
+            }
+        }
+    }
+
+    .wl131 {
+        left: 0.5em;
+        top: 1em;
+    }
+
+    .wl171 {
+        left: 1.5em;
+        top: 2em;
+    }
+
+    .wl1600 {
+        left: 2.5em;
+        top: 3em;
+    }
+
+    .wlother {
+        left: 0.8em;
+        top: 4.8em;
+        height: 1em;
+        font-size: 3em;
+        width: 1em;
+        color: black;
+    }
+
+    .wlmagnetogram {
+        left: 4.5em;
+        top: 5em;
+    }
+
+    #datasetTimesteps {
+        left: 15em;
+        top: 7em;
+        height: 20em;
+        width: 13em;
+
+        > div {
+            position: relative;
+            width: 4em;
+            height: 3em;
+            display: inline-block;
+
+            > div {
+                font-size: 0.3em;
+                position: absolute;
+            }
+        }
+
+        #timestepsRow1 {
+            z-index: 3;
+        }
+
+        #timestepsRow2 {
+            z-index: 2;
+        }
+
+        #timestepsRow3 {
+            z-index: 1;
+        }
+
+        .wl131 {
+            left: 0;
+            top: 0;
+        }
+
+        .wl171 {
+            left: 10px;
+            top: 10px;
+        }
+
+        .wl1600 {
+            left: 20px;
+            top: 20px;
+        }
+
+        .wlother {
+            left: 27px;
+            top: 86px;
+            font-size: 1em;
+        }
+
+        .wlmagnetogram {
+            left: 40px;
+            top: 40px;
+        }
+
+        .wl131, .wl171, .wl1600, .wlmagnetogram {
+            &:hover {
+                font-size: 100%;
+            }
+        }
+    }
+
+    #emissionLabel {
+        left: 32em;
+        top: 8em;
+        opacity: 0.5;
+
+        > span {
+            font-size: 2em;
+            color: black;
+        }
+
+        @include vendor('transition', 'all 0.35s ease-in-out');
+
+        &:hover {
+            opacity: 1;
+        }
+
+        > div {
+            position: absolute;
+            left: 1em;
+            top: 3em;
+            width: 10em;
+            font-size: 0.8em;
+            line-height: 1em;
+        }
+    }
+
+    #descriptionBar {
+        left: 0;
+        bottom: 0;
+        //-webkit-appearance: none;
+        border: 0;
+        outline: 0;
+        background: #fff;
+        background: rgba(255, 255, 255, 0.75);
+        width: 100%;
+        border-radius: 0.35em;
+        box-shadow: inset 0 0.1em 0.1em 0 rgba(0, 0, 0, 0.05);
+        border: solid 1px rgba(0, 0, 0, 0.15);
+        @include vendor('transition', 'all 0.35s ease-in-out');
+
+        &:hover {
+            box-shadow: 0 0 2px 1px #8ebebc;
+        }
+
+        > div {
+            cursor: default;
+
+            @include vendor('transition', 'all 0.35s ease-in-out');
+
+            &:hover {
+                font-weight: bold;
+            }
+        }
+    }
+}
