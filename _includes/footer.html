@@ -1,13 +1,14 @@
 <!-- Footer -->
 <div id="footer">
-  
-  <!-- Copyright -->
-  <ul class="copyright">
-    {% if site.title or site.author %}
-      <li>&copy; {{- site.title | default: site.author -}}. All rights reserved.</li>
+
+    {% if site.author %}
+    <div>Authors:&nbsp;{{- site.author -}} </div>
     {% endif %}
-    <li>Design: <a href="http://html5up.net">HTML5 UP</a></li>
-    <li>Jekyll integration: <a href="https://chrisbobbe.github.io/">Chris Bobbe</a></li>
-  </ul>
-  
+    <!-- Copyright -->
+    <ul class="copyright">
+        <li>&copy; <a href="https://www.fhnw.ch/en/about-fhnw/schools/school-of-engineering/institutes/institute-of-4d-technologies">Institute for Data Science, FHNW, Switzerland</a></li>
+        <li>Design: <a href="http://html5up.net">HTML5 UP</a></li>
+        <li>Jekyll integration: <a href="https://chrisbobbe.github.io/">Chris Bobbe</a></li>
+    </ul>
+
 </div>

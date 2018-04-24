@@ -84,7 +84,45 @@
 
 				});
 
-				$.scrollzer(ids, { pad: 200, lastHack: true });
+                $.scrollzer(ids, { pad: 200, lastHack: true });
+
+        // FAQ
+        var $faq_a = $('#faqcontainer a.scrolly');
+
+        // Scrolly-fy links.
+        $faq_a
+            .scrolly()
+            .on('click', function (e) {
+
+                var t = $(this),
+                    href = t.attr('href');
+
+                if (href[0] != '#')
+                    return;
+
+                e.preventDefault();
+
+                // lock scrollzer until scrolling has stopped
+                $faq_a
+                    .addClass('scrollzer-locked');
+
+            });
+
+        // Initialize scrollzer.
+        var faq_ids = [];
+
+        $faq_a.each(function () {
+
+            var href = $(this).attr('href');
+
+            if (href[0] != '#')
+                return;
+
+            faq_ids.push(href.substring(1));
+
+        });
+
+        $.scrollzer(faq_ids, { pad: 200, lastHack: true });
 
 		// Header (narrower + mobile).
 

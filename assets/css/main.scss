@@ -10,7 +10,7 @@
 
 #datasetStructure {
     position: relative;
-    height: 25em;
+    height: 33em;
 
     > div {
         position: absolute;
@@ -33,7 +33,7 @@
 
     .wl131 {
         left: 0.5em;
-        top: 1em;
+        top: 0em;
     }
 
     .wl171 {
@@ -43,12 +43,12 @@
 
     .wl1600 {
         left: 2.5em;
-        top: 3em;
+        top: 4em;
     }
 
     .wlother {
         left: 0.8em;
-        top: 4.8em;
+        top: 5.6em;
         height: 1em;
         font-size: 3em;
         width: 1em;
@@ -57,7 +57,7 @@
 
     .wlmagnetogram {
         left: 4.5em;
-        top: 5em;
+        top: 8em;
     }
 
     #datasetTimesteps {
@@ -97,23 +97,23 @@
 
         .wl171 {
             left: 10px;
-            top: 10px;
+            top: 20px;
         }
 
         .wl1600 {
             left: 20px;
-            top: 20px;
+            top: 40px;
         }
 
         .wlother {
             left: 27px;
-            top: 86px;
+            top: 116px;
             font-size: 1em;
         }
 
         .wlmagnetogram {
             left: 40px;
-            top: 40px;
+            top: 80px;
         }
 
         .wl131, .wl171, .wl1600, .wlmagnetogram {
@@ -150,6 +150,66 @@
         }
     }
 
+    .timeline {
+        position: absolute;
+        left: 0;
+        bottom: 11em;
+        height: 8px;
+        background-color: white;
+        width: 100%;
+        border-top: 1px solid #9ececc;
+        border-bottom: 1px solid #9ececc;
+
+        > div {
+            position: absolute;
+            width: 25px;
+            height: 25px;
+            bottom: -10px;
+            background-color: white;
+            border: 4px solid #8ebebc;
+            border-radius: 50%;
+            z-index: 1;
+
+            > div {
+                position: absolute;
+                width: 5em;
+                top: 0.5em;
+                left: -2.5em;
+                margin-left: 12.5px;
+            }
+        }
+
+        > #tl_predictionPeriod {
+            position: absolute;
+            left: 27em;
+            right: 0;
+            top: -1px;
+            height: 8px;
+            border: 0;
+            border-top: 1px solid #eba603;
+            border-bottom: 1px solid #eba603;
+            width: auto;
+            border-radius: 0px;
+
+            > div {
+                position: absolute;
+                top: -0.4em;
+                left: 0;
+                height: 1em;
+                width: 2px;
+                background-color: #eba603;
+                margin: 0;
+            }
+
+            > span {
+                display: block;
+                margin: auto;
+                margin-top: 5px;
+                text-align: center;
+            }
+        }
+    }
+
     #descriptionBar {
         left: 0;
         bottom: 0;
@@ -171,19 +231,26 @@
         > div {
             cursor: default;
 
-            @include vendor('transition', 'all 0.35s ease-in-out');
+            span {
+                display: inline-block;
+            }
 
             &:hover {
-                font-weight: bold;
+                > span:first-child {
+                    @include vendor('transition', 'all 0.35s ease-in-out');
+                    font-weight: bold;
+                }
+            }
+
+            > span:last-child, ul {
+                font-size: 0.7em;
+                line-height: 1.2em;
+                text-align: left;
+                margin-bottom: 1em;
             }
         }
-
-        ul {
-            font-size: 0.7em;
-            line-height: 1em;
-            width: 17em;
-            text-align: left;
-            margin-left: 3em;
-        }
     }
+}
+
+#faqcontainer{
 }

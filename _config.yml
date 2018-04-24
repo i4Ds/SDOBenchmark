@@ -35,7 +35,7 @@ subtitle: Solar flare prediction image dataset
 description: >- # this means to ignore newlines until "baseurl:"
   SDOBenchmark is an image dataset for
   solar flare predictions.
-author: Roman Bolzern
+author: "Roman Bolzern, Michael Aerni"
 email:
 avatar: assets/images/avatar.png
 
