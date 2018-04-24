@@ -4,7 +4,7 @@ icon: fa-th
 order: 2
 ---
 
-<p>In the SDOBenchmark machine learning dataset, each sample consists of <strong>10</strong> images with <strong>4</strong> time steps:</p>
+<p>In the SDOBenchmark dataset, each sample consists of <strong>10</strong> images with <strong>4</strong> time steps:</p>
 
 <div id="datasetStructure">
     <div class="item wl131">
@@ -127,57 +127,55 @@ order: 2
     <div class="row" id="descriptionBar">
         <div class="4u">
             10 different image types
+            <ul>
+                <li>
+                    256x256 px JPEG
+                </li>
+                <li>
+                    coming from 2 detectors onboard the SDO satellite: 8 from AIA, 2 from HMI
+                </li>
+                <li>
+                    every now and then, some are missing
+                </li>
+            </ul>
         </div>
         <div class="4u">
             4 in succession
+            <ul>
+                <li>
+                    12 hours before prediction period
+                </li>
+                <li>                    
+                    9 hours before prediction period
+                </li>
+                <li>
+                    1.5h before prediction period
+                </li>
+                <li>
+                    10 minutes before prediction period
+                </li>
+            </ul>
         </div>
         <div class="4u">
             labeled with an emission
+            <ul>
+                <li>
+                    the peak emission ("flux")<br />of the sun
+                </li>
+                <li>
+                    within 24h
+                </li>
+                <li>
+                    1e-9 = "calm sun"
+                </li>
+                <li>
+                    1e-3 = largest flare in a decade
+                </li>
+            </ul>
         </div>
     </div>
 </div>
 
-  <!--<div class="row">
-    <div class="4u 12u$(mobile)">
-      <div class="item">
-        <a href="#" class="image fit"><img src="{{ 'assets/images/pic02.jpg' | relative_url }}" alt="Ipsum Feugiat" /></a>
-        <header>
-          <h3>Ipsum Feugiat</h3>
-        </header>
-      </div>
-      <div class="item">
-        <a href="#" class="image fit"><img src="{{ 'assets/images/pic03.jpg' | relative_url }}" alt="Rhoncus Semper" /></a>
-        <header>
-          <h3>Rhoncus Semper</h3>
-        </header>
-      </div>
-    </div>
-    <div class="4u 12u$(mobile)">
-      <div class="item">
-        <a href="#" class="image fit"><img src="{{ 'assets/images/pic04.jpg' | relative_url }}" alt="Magna Nullam" /></a>
-        <header>
-          <h3>Magna Nullam</h3>
-        </header>
-      </div>
-      <div class="item">
-        <a href="#" class="image fit"><img src="{{ 'assets/images/pic05.jpg' | relative_url }}" alt="Natoque Vitae" /></a>
-        <header>
-          <h3>Natoque Vitae</h3>
-        </header>
-      </div>
-    </div>
-    <div class="4u 12u$(mobile)">
-      <div class="item">
-        <a href="#" class="image fit"><img src="{{ 'assets/images/pic06.jpg' | relative_url }}" alt="Dolor Penatibus" /></a>
-        <header>
-          <h3>Dolor Penatibus</h3>
-        </header>
-      </div>
-      <div class="item">
-        <a href="#" class="image fit"><img src="{{ 'assets/images/pic07.jpg' | relative_url }}" alt="Orci Convallis" /></a>
-        <header>
-          <h3>Orci Convallis</h3>
-        </header>
-      </div>
-    </div>
-  </div>-->
+
+<p>The dataset comes with <strong>11'146</strong> training samples and <strong>1710</strong> test samples.</p>
+

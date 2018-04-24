@@ -10,7 +10,7 @@
 
 #datasetStructure {
     position: relative;
-    height: 21em;
+    height: 25em;
 
     > div {
         position: absolute;
@@ -127,6 +127,7 @@
         left: 32em;
         top: 8em;
         opacity: 0.5;
+        cursor: default;
 
         > span {
             font-size: 2em;
@@ -175,6 +176,14 @@
             &:hover {
                 font-weight: bold;
             }
+        }
+
+        ul {
+            font-size: 0.7em;
+            line-height: 1em;
+            width: 17em;
+            text-align: left;
+            margin-left: 3em;
         }
     }
 }
