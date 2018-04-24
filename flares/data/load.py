@@ -129,7 +129,7 @@ class RequestSender(object):
         # Submit requests
         requests = []
         for series_name in self.SERIES_NAMES:
-            for hd in [0, 6*30, 10*60+30, 11*60+50]: # [] minutes after input start. (last = 10min before prediction period)
+            for hd in [0, 7*60, 10*60+30, 11*60+50]: # [] minutes after input start. (last = 10min before prediction period)
                 qt = start + dt.timedelta(minutes=hd)
                 if not _sample_images_exist(fp, series_name, qt):
                     query = f"{series_name}[{qt:%Y.%m.%d_%H:%M:%S_TAI}]"
@@ -467,7 +467,7 @@ class OutputProcessor(object):
             available_times[current_wavelength].append((current_datetime, current_file))
 
         # Assign images to actual time steps
-        time_steps = [(sample_meta_data.start + dt.timedelta(minutes=offset), dict()) for offset in [0, 6*30, 10*60+30, 11*60+50]]
+        time_steps = [(sample_meta_data.start + dt.timedelta(minutes=offset), dict()) for offset in [0, 7*60, 10*60+30, 11*60+50]]
         for current_wavelength, current_available_times in available_times.items():
             for current_datetime, current_file in current_available_times:
                 current_step_images = min(time_steps, key=lambda step: abs(step[0] - current_datetime))[1]
