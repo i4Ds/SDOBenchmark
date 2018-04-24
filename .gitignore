@@ -3,3 +3,4 @@
 .sass-cache
 Gemfile.lock
 /.vs
+/.idea
