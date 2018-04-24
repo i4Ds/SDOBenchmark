@@ -1,5 +1,9 @@
 html/
-website/
+.sass-cache/
+.vs/
+_site/
+Gemfile.lock
+
 
 # Created by https://www.gitignore.io/api/linux,python,pycharm+all
 
