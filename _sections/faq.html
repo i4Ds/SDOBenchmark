@@ -52,6 +52,17 @@ order: 3
         </p>
     </div>
 
+    <button class="accordion">Why the L1-norm as a metric?</button>
+    <div class="accordionpanel">
+        <p>
+            Due to the logarithmic nature of the label <i>peak_flux</i>, the L1-norm weighs errors with strong activities
+            much higher than in calm or low activities. While this correlates with our intentions, the data imbalance
+            helps to rebalance the otherwise predominant strong flare predictions to some degree.<br />
+            Further, while there are plenty of norms around, the L1-norm is simple and exists out of the box in practically
+            all machine learning frameworks.
+        </p>
+    </div>
+
     <button class="accordion">Where can I contact someone for questions or discussions?</button>
     <div class="accordionpanel">
         <p>
