@@ -8,7 +8,7 @@ order: 2
 
 <div id="datasetStructure">
     <div class="item wl131">
-        <img  class="image fit" src="{{ 'assets/images/sample/2013-03-06T235959__131.jpg' | relative_url }}" alt="Wavelength 131 of 6 March 2013" />
+        <img class="image fit" src="{{ 'assets/images/sample/2013-03-06T235959__131.jpg' | relative_url }}" alt="Wavelength 131 of 6 March 2013" />
         <header>
             <h3>AIA wavelength 131</h3>
         </header>
@@ -118,10 +118,10 @@ order: 2
     </div>
 
     <div id="emissionLabel">
-        <div>
-            "Nothing will happen in the next 24h"
-        </div>
         <span>1e-09</span>
+    </div>
+    <div id="emissionLabelSubtext">
+        "Nothing will happen"
     </div>
 
     <div class="timeline">
@@ -184,4 +184,32 @@ order: 2
 
 <br />
 <p>The dataset comes with <strong>11'146</strong> training samples and <strong>1710</strong> test samples.</p>
+<br />
 
+<h3>Hints and tipps about the data</h3>
+<div id="hintsAndTips" class="row">
+    <div class="6u 12u$(mobile)">
+        <h4>The data is not stationary</h4>
+        <ul>
+            <li>
+                There exists a nearly periodic 11-year <a href="https://en.wikipedia.org/wiki/Solar_cycle">solar activity cycle.</a>
+            </li>
+            <li>
+                Several detectors experience a decay in functionality over the years in operation.
+                Their images get darker and darker over time.
+                (See e.g. <a href="https://github.com/Helioviewer-Project/helioviewer.org/issues/136">this GitHub issues discussion</a>)
+            </li>
+        </ul>
+    </div>
+    <div class="6u 12u$(mobile)">
+        <h4>The data has gaps, but it's reasonably stable</h4>
+        <ul>
+            <li>
+                The samples' label "peak_flux" diverges very little from the manual classification of experts (see <a href="https://github.com/i4Ds/SDOBenchmark/blob/master/notebooks/data-examination.ipynb">the analysis</a>)
+            </li>
+            <li>
+                The data went through plenty of verification in code (e.g. <a href="https://github.com/i4Ds/SDOBenchmark/blob/master/flares/data/transform.py#L510">here</a> or <a href="https://github.com/i4Ds/SDOBenchmark/blob/master/flares/data/load.py#L556">here</a>)
+            </li>
+        </ul>
+    </div>
+</div>

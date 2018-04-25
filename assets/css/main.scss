@@ -124,7 +124,7 @@
     }
 
     #emissionLabel {
-        left: 32em;
+        left: 84%;
         top: 8em;
         opacity: 0.5;
         cursor: default;
@@ -139,15 +139,15 @@
         &:hover {
             opacity: 1;
         }
+    }
 
-        > div {
-            position: absolute;
-            left: 1em;
-            top: 3em;
-            width: 10em;
-            font-size: 0.8em;
-            line-height: 1em;
-        }
+    #emissionLabelSubtext {
+        position: absolute;
+        left: 85%;
+        top: 13em;
+        width: 7em;
+        font-size: 0.8em;
+        line-height: 1em;
     }
 
     .timeline {
@@ -213,6 +213,7 @@
     #descriptionBar {
         left: 0;
         bottom: 0;
+        margin-left: 0;
         //-webkit-appearance: none;
         border: 0;
         outline: 0;
@@ -249,6 +250,21 @@
                 margin-bottom: 1em;
             }
         }
+    }
+}
+
+#hintsAndTips {
+    > div {
+        text-align: left;
+
+        >h4 {
+            font-weight: 400;
+        }
+    }
+
+    ul {
+        margin-top: 0.5em;
+        margin-bottom: 0.5em;
     }
 }
 
