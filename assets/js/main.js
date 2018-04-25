@@ -86,43 +86,18 @@
 
                 $.scrollzer(ids, { pad: 200, lastHack: true });
 
-        // FAQ
-        var $faq_a = $('#faqcontainer a.scrolly');
+        // accordion
+        $('.accordion').click(function () {
+            this.classList.toggle('active');
 
-        // Scrolly-fy links.
-        $faq_a
-            .scrolly()
-            .on('click', function (e) {
-
-                var t = $(this),
-                    href = t.attr('href');
-
-                if (href[0] != '#')
-                    return;
-
-                e.preventDefault();
-
-                // lock scrollzer until scrolling has stopped
-                $faq_a
-                    .addClass('scrollzer-locked');
-
-            });
-
-        // Initialize scrollzer.
-        var faq_ids = [];
-
-        $faq_a.each(function () {
-
-            var href = $(this).attr('href');
-
-            if (href[0] != '#')
-                return;
-
-            faq_ids.push(href.substring(1));
-
+            /* Toggle between hiding and showing the active panel */
+            var panel = this.nextElementSibling;
+            if (panel.style.display === "block") {
+                panel.style.display = "none";
+            } else {
+                panel.style.display = "block";
+            }
         });
-
-        $.scrollzer(faq_ids, { pad: 200, lastHack: true });
 
 		// Header (narrower + mobile).
 

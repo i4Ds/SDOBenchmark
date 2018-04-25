@@ -252,5 +252,59 @@
     }
 }
 
-#faqcontainer{
+#faqcontainer {
+    .accordion {
+        cursor: pointer;
+        padding: 18px;
+        width: 100%;
+        text-align: left;
+        border: none;
+        outline: none;
+        font-size: 100%;
+
+        @include vendor('transition', 'all 0.35s ease-in-out');
+
+        &:after {
+            content: '\02795'; /* Unicode character for "plus" sign (+) */
+            font-size: 13px;
+            color: #777;
+            float: right;
+            margin-left: 5px;
+        }
+
+        &.active {
+            background-color: #9ececc;
+
+            &:after {
+                content: "\2796"; /* Unicode character for "minus" sign (-) */
+            }
+        }
+    }
+
+    .accordionpanel {
+        padding: 0 1em;
+        padding-top: 2em;
+        background-color: white;
+        display: none;
+        overflow: hidden;
+        text-align: left;
+        .row {
+            margin-top: 0;
+            margin-bottom: 2em;
+        }
+    }
+}
+
+.videoWrapper {
+    position: relative;
+    padding-bottom: 56.25%; /* 16:9 */
+    height: 0;
+}
+
+.videoWrapper iframe {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
 }

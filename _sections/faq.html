@@ -5,28 +5,55 @@ order: 4
 ---
 
 <div id="faqcontainer">
-    <p>
-        <a href="#whatisalargeflare" class="scrolly">What is a large flare, what is not?</a><br />
-        <a href="#whysofewsamples" class="scrolly">Why are there so few training samples?</a><br />
-        <a href="#whatarethedifficulties" class="scrolly">What are the difficulties</a>
-    </p>
 
-    <h2 id="whatisalargeflare">What is a large flare, what is not?</h2>
-    <p>
-        Elementum sem parturient nulla quam placerat viverra
-        mauris non cum elit tempus ullamcorper dolor. Libero rutrum ut lacinia
-        donec curae mus. Eleifend id porttitor ac ultricies lobortis sem nunc
-        orci ridiculus faucibus a consectetur. Porttitor curae mauris urna mi dolor.
-    </p>
+    <button class="accordion">What is this SDO, AIA, HMI?</button>
+    <div class="accordionpanel">
+        <ul>
+            <li>SDO is the mission and the satellite which is orbiting around earth</li>
+            <li>AIA and HMI are two detectors ("cameras") that record what happens on the sun</li>
+        </ul>
+    </div>
 
-    <h2 id="whysofewsamples">Why are there so few training samples?</h2>
-    <p>
-        Elementum sem parturient nulla quam placerat viverra
-        mauris non cum elit tempus ullamcorper dolor. Libero rutrum ut lacinia
-        donec curae mus. Eleifend id porttitor ac ultricies lobortis sem nunc
-        orci ridiculus faucibus a consectetur. Porttitor curae mauris urna mi dolor.
-    </p>
+    <button class="accordion">What makes this ML dataset challenging?</button>
+    <div class="accordionpanel">
+        <ul>
+            <li>A single sample is a collection of images over four time steps (Convolutions and RNNs)</li>
+            <li>Not many samples</li>
+        </ul>
+    </div>
+
+    <button class="accordion">What is a large flare, what is not?</button>
+    <div class="accordionpanel">
+        <div class="row">
+            <div class="5u 12u$(mobile)">
+                In <a href="https://www.youtube.com/watch?v=XgRFLmhSAW0">September 2017</a> a flare erupted of
+                a magnitude larger than any other in the last decade. In the dataset, this flare is represented
+                with a peak flux of 0.001 (i.e. 1e-3). The smallest flare that is part of the data is listed with
+                a peak flux of 1e-7 (while 1e-9 is "nothing happens at all").
+            </div>
+            <div class="7u 12u$(mobile)">
+                <div class="videoWrapper">
+                    <iframe width="560" height="315" src="https://www.youtube.com/embed/XgRFLmhSAW0?rel=0&amp;showinfo=0&amp;start=16" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <button class="accordion">Why are there so few training samples?</button>
+    <div class="accordionpanel">
+        <p>
+            The easy answer is that we can't artificially produce or simulate more flares. But there is also
+            a strategic choice behind it:<br />
+            Imagine you have to train a network to recognize cats. We'd give you a training image set of 10 million
+            images, recorded by our cameras around our neighbourhood. While 10 million images is a great size
+            for deep learning, you'd soon come to realize that all our images are from the same 1'000 cats. As a
+            consequence, your model would overfit horribly.<br />
+            We therefore chose to preselect only a few images per cat, but each as different to the others as possible.
+        </p>
+    </div>
 </div>
+
+
 
 <!--<form method="post" action="https://formspree.io/{{ site.email }}">
   <div class="row">
@@ -40,9 +67,4 @@ order: 4
     </div>
   </div>
 </form>
-
-What is a large flare, what is not?
-https://www.youtube.com/watch?v=XgRFLmhSAW0
-
-Why so few training samples?
     -->
