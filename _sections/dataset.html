@@ -184,6 +184,15 @@ order: 2
 
 <br />
 <p>The dataset comes with <strong>11'146</strong> training samples and <strong>1'710</strong> test samples.</p>
+
+<br />
+
+<h3>Evaluation metric</h3>
+<p>
+    We suggest using the <strong>L1-norm</strong> for this dataset.<br />
+    <span style="font-size: 80%;">As a rule of thumb, at 90% accuracy you start to be on par with current research results.</span>
+</p>
+
 <br />
 
 <h3>Hints and tipps about the data</h3>
@@ -192,7 +201,7 @@ order: 2
         <h4>The data has gaps, but it's reasonably stable</h4>
         <ul>
             <li>
-                The samples' label "peak_flux" diverges very little from the manual classification of experts (see <a href="https://github.com/i4Ds/SDOBenchmark/blob/master/notebooks/data-examination.ipynb">the analysis</a>)
+                The samples' label <i><strong>peak_flux</strong></i> diverges very little from the manual classification of experts (see <a href="https://github.com/i4Ds/SDOBenchmark/blob/master/notebooks/data-examination.ipynb">the analysis</a>)
             </li>
             <li>
                 The data went through plenty of verification in code (e.g. <a href="https://github.com/i4Ds/SDOBenchmark/blob/master/flares/data/transform.py#L510">here</a> or <a href="https://github.com/i4Ds/SDOBenchmark/blob/master/flares/data/load.py#L556">here</a>)

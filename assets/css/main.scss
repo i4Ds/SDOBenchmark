@@ -9,6 +9,10 @@
         background-color: rgba(0, 0, 0, 0.5);
     }
 
+    h2 {
+        text-shadow: 2px 2px #6d6964;
+    }
+
     #downloadBar {
         width: 100%;
         position: absolute;
@@ -18,8 +22,14 @@
         padding-right: 0.5em;
         padding-bottom: 0.2em;
 
-        >a {
+        > a {
             margin: 0 0.2em;
+        }
+
+        > div {
+            position: absolute;
+            right: 9em;
+            bottom: 1.2em;
         }
     }
 }

@@ -1,21 +1,31 @@
 ---
 title: Current state
 icon: none
-order: 3
+order: 4
 ---
+<div class="row" style="text-align:left;">
+    <div class="4u 12u$(mobile)">
+        <h3> ... for this dataset</h3>
+        <p>
+            Currently, no model has been trained on this dataset.<br />
+            TODO
+        </p>
+    </div>
+    <div class="8u 12u$(mobile)">
+        <h3>... for solar flare prediction in general</h3>
+        A nonextensive list of examples are:
+        <ul>
+            <li>Plenty of manual forecasts, many of them <a href="http://flarecast.eu/spaceweather-solarflare-forecasting">listed here</a></li>
+            <li>The 24h prediction of solar monitor at <a href="https://solarmonitor.org/forecast.php">solarmonitor.org</a></li>
+            <li><a href="https://arxiv.org/abs/1708.01323">Flare Prediction Using Photospheric and Coronal Image Data</a></li>
+            <li><a href="http://iopscience.iop.org/article/10.3847/1538-4357/aa789b/meta">A RandomForest applied on HMI data</a> (<a href="https://arxiv.org/pdf/1706.02422.pdf">Arxiv here</a>)</li>
+            <li><a href="https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=8258216">Solar Flare Prediction using Multivariate Time Series Decision Trees</a></li>
+        </ul>
 
-https://solarmonitor.org/forecast.php
-<p>
-    There exist several active forecasts for solar activity. A nonextensive list of examples are:
-</p>
-
-<ul>
-    <li>The 24h prediction of solar monitor at <a href="https://solarmonitor.org/forecast.php">solarmonitor.org</a></li>
-    <li>The manual forecasts of the NOAA Space Weather Prediction Center (e.g. <a href="https://www.swpc.noaa.gov/products/3-day-forecast">here</a> or <a href="https://www.swpc.noaa.gov/products/weekly-highlights-and-27-day-forecast"></a>)</li>
-    <li><a href="http://iopscience.iop.org/article/10.3847/1538-4357/aa789b/meta">A RandomForest applied on HMI data</a>, <a href="https://arxiv.org/pdf/1706.02422.pdf">Arxiv</a></li>
-</ul>
-
-<p>
-    Besides the mentioned predictions, plenty of research about solar activities are being conducted.<br />
-    To our knowledge, noone has applied CNNs on AIA and HMI image products for flare prediction.
-</p>
+    </div>
+    <span>Also worth a mention are tools and helpers for solar flare forecasting.</span>
+    <ul>
+        <li><a href="http://flarecast.eu/">Flarecast.eu</a>, a flare forecasting framework</li>
+        <li><a href="https://github.com/nasa-fdl/flarenet">Flarenet</a>, a framework built for helping deep learning researchers to faciliate creating a dataset similar to this one (<a href="https://dl4physicalsciences.github.io/files/nips_dlps_2017_5.pdf">Paper here</a>)</li>
+    </ul>
+</div>
