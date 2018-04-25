@@ -1,16 +1,16 @@
 ---
 title: FAQ
-icon: fa-envelope
+icon: none
 order: 4
 ---
 
 <div id="faqcontainer">
 
-    <button class="accordion">What is this SDO, AIA, HMI?</button>
+    <button class="accordion">What is SDO, AIA, HMI?</button>
     <div class="accordionpanel">
         <ul>
-            <li>SDO is the mission and the satellite which is orbiting around earth</li>
-            <li>AIA and HMI are two detectors ("cameras") that record what happens on the sun</li>
+            <li><a href="https://sdo.gsfc.nasa.gov/">SDO</a> is the mission and the satellite which is orbiting around earth</li>
+            <li><a href="https://en.wikipedia.org/wiki/Solar_Dynamics_Observatory#Atmospheric_Imaging_Assembly_(AIA)">AIA</a> and <a href="https://en.wikipedia.org/wiki/Solar_Dynamics_Observatory#Helioseismic_and_Magnetic_Imager_(HMI)">HMI</a> are two detectors ("cameras") that record the activities on sun</li>
         </ul>
     </div>
 
@@ -49,6 +49,24 @@ order: 4
             for deep learning, you'd soon come to realize that all our images are from the same 1'000 cats. As a
             consequence, your model would overfit horribly.<br />
             We therefore chose to preselect only a few images per cat, but each as different to the others as possible.
+        </p>
+    </div>
+
+    <button class="accordion">Where can I contact someone for questions or discussions?</button>
+    <div class="accordionpanel">
+        <p>
+            On the <a href="https://github.com/i4Ds/SDOBenchmark/issues">SDOBenchmark GitHub issues page</a>.
+        </p>
+    </div>
+
+    <button class="accordion">Why not predict more hours/more detail/higher resolution?</button>
+    <div class="accordionpanel">
+        <p>
+            Currently, it is still unknown how well models will perform on this dataset. We believe in the
+            <a href="https://en.wikipedia.org/wiki/KISS_principle">KISS principle</a>, and while one can't
+            reach the ultimate value of predictions with it, a well performing model on this data would still
+            provide great value.<br />
+            If models perform well, we will gladly provide a more difficult prediction problem.
         </p>
     </div>
 </div>
