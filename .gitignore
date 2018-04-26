@@ -4,3 +4,5 @@
 Gemfile.lock
 /.vs
 /.idea
+/notebooks
+Thumbs.db
