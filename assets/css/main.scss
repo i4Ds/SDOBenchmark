@@ -38,10 +38,6 @@
     position: relative;
     height: 22em;
 
-    @include breakpoint(mobile) {
-        font-size: 0.8em;
-    }
-
     > div {
         position: absolute;
     }
@@ -170,7 +166,16 @@
 
         .wl131, .wl171, .wl1600, .wlmagnetogram {
             &:hover {
-                font-size: 100%;
+                z-index: 5;
+                width: 24em;
+
+                > image {
+                    width: 24em;
+                }
+
+                h3 {
+                    font-size: 2.5em;
+                }
             }
         }
     }
@@ -196,13 +201,21 @@
     #emissionLabelSubtext {
         position: absolute;
         left: 85%;
-        top: 10em;
+        top: 11em;
         width: 7em;
         line-height: 0.9em;
 
         > span {
             font-size: 0.8em;
         }
+    }
+
+    @include breakpoint(mobile) {
+        font-size: 0.8em;
+    }
+
+    @media (max-width: 500px) {
+        font-size: 0.6em;
     }
 }
 
@@ -213,6 +226,10 @@
     width: 100%;
     border-top: 1px solid #9ececc;
     border-bottom: 1px solid #9ececc;
+
+    @include breakpoint(mobile) {
+        font-size: 0.8em;
+    }
 
     > div {
         position: absolute;
@@ -259,6 +276,7 @@
             margin: auto;
             margin-top: 5px;
             text-align: center;
+            line-height: 1em;
         }
     }
 }
@@ -285,6 +303,7 @@
 
         span {
             display: inline-block;
+            line-height: 1em;
         }
 
         &:hover {
