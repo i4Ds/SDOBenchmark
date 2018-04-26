@@ -55,6 +55,17 @@
                 width: 12em;
             }
         }
+
+        header {
+            position: relative;
+            >div {
+                position: absolute;
+                left: -2.2em;
+                top: 1.8em;
+                width: 2em;
+                text-align: right;
+            }
+        }
     }
 
     .wl131 {
@@ -73,8 +84,8 @@
     }
 
     .wlother {
-        left: 0.8em;
-        top: 5.6em;
+        left: 0.6em;
+        top: 4.9em;
         height: 1em;
         font-size: 3em;
         width: 1em;
@@ -132,9 +143,9 @@
         }
 
         .wlother {
-            left: 27px;
-            top: 116px;
-            font-size: 1em;
+            left: 5px;
+            top: 90px;
+            font-size: 2em;
         }
 
         .wl171 {
