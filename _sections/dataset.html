@@ -203,7 +203,7 @@ order: 2
         <h4>The data has gaps, but it's reasonably stable</h4>
         <ul>
             <li>
-                The samples' label <i><strong>peak_flux</strong></i> diverges very little from the manual classification of experts (see <a href="https://github.com/i4Ds/SDOBenchmark/blob/master/notebooks/data-examination.ipynb">the analysis</a>)
+                The samples' label <i><strong>peak_flux</strong></i> diverges very little from the manual classification of experts (see <a href="https://github.com/i4Ds/SDOBenchmark/blob/master/notebooks/data_analysis.ipynb">the analysis</a>)
             </li>
             <li>
                 The data went through plenty of verification in code (e.g. <a href="https://github.com/i4Ds/SDOBenchmark/blob/master/flares/data/transform.py#L510">here</a> or <a href="https://github.com/i4Ds/SDOBenchmark/blob/master/flares/data/load.py#L556">here</a>)
@@ -227,7 +227,7 @@ order: 2
         <h4>The data is imbalanced</h4>
         <p>
             ..but the L1-norm takes care of that for you in this case (the FAQ explains why).<br />
-            <a href="https://github.com/i4Ds/SDOBenchmark/blob/master/notebooks/data-examination.ipynb">The data analyis</a> gives
+            <a href="https://github.com/i4Ds/SDOBenchmark/blob/master/notebooks/data_analysis.ipynb">The data analyis</a> gives
             a rough idea of the imbalance in terms of the flux labels "free" (1e-9) with 3586 samples, "B" (> 1e-7) with 2173 samples,
             "C" (> 1e-6) with 4783 samples, "M" (> 1e-5) with 574 samples, and "X" (> 1e-4) with 30 samples.
         </p>
