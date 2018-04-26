@@ -226,10 +226,9 @@ order: 2
     <div class="12u">
         <h4>The data is imbalanced</h4>
         <p>
-            ..but the L1-norm takes care of that for you in this case (the FAQ explains why).<br />
+            ..but the mean absolute error takes care of that for you in this case (the FAQ explains why).<br />
             <a href="https://github.com/i4Ds/SDOBenchmark/blob/master/notebooks/data_analysis.ipynb">The data analyis</a> gives
-            a rough idea of the imbalance in terms of the flux labels "free" (1e-9) with 3586 samples, "B" (> 1e-7) with 2173 samples,
-            "C" (> 1e-6) with 4783 samples, "M" (> 1e-5) with 574 samples, and "X" (> 1e-4) with 30 samples.
+            a rough idea of the imbalance by counting the binned emissions.
         </p>
     </div>
 </div>
