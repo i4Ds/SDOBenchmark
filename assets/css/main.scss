@@ -1,6 +1,6 @@
 --- 
 # Only the main Sass file needs front matter (the dashes are enough) 
----
+--- 
 @import "jekyll-theme-prologue";
 
 #intro {
@@ -36,7 +36,11 @@
 
 #datasetStructure {
     position: relative;
-    height: 33em;
+    height: 22em;
+
+    @include breakpoint(mobile) {
+        font-size: 0.8em;
+    }
 
     > div {
         position: absolute;
@@ -58,7 +62,8 @@
 
         header {
             position: relative;
-            >div {
+
+            > div {
                 position: absolute;
                 left: -2.2em;
                 top: 1.8em;
@@ -84,12 +89,16 @@
     }
 
     .wlother {
-        left: 0.6em;
-        top: 4.9em;
+        left: 2.5em;
+        top: 15em;
         height: 1em;
-        font-size: 3em;
         width: 1em;
         color: black;
+        line-height: 1em;
+
+        > span {
+            font-size: 3em;
+        }
     }
 
     .wl171 {
@@ -126,8 +135,7 @@
         #timestepsRow3 {
             z-index: 1;
         }
-
-        .wl131 {
+        /*.wl131 {
             left: 0;
             top: 0;
         }
@@ -135,6 +143,8 @@
         .wlmagnetogram {
             left: 10px;
             top: 20px;
+            left: 2em;
+            top: 4em;
         }
 
         .wl1600 {
@@ -151,6 +161,11 @@
         .wl171 {
             left: 40px;
             top: 80px;
+        }*/
+        .wlother {
+            > span {
+                font-size: 2em;
+            }
         }
 
         .wl131, .wl171, .wl1600, .wlmagnetogram {
@@ -181,111 +196,109 @@
     #emissionLabelSubtext {
         position: absolute;
         left: 85%;
-        top: 13em;
+        top: 10em;
         width: 7em;
-        font-size: 0.8em;
-        line-height: 1em;
-    }
+        line-height: 0.9em;
 
-    .timeline {
+        > span {
+            font-size: 0.8em;
+        }
+    }
+}
+
+.timeline {
+    position: relative;
+    height: 8px;
+    background-color: white;
+    width: 100%;
+    border-top: 1px solid #9ececc;
+    border-bottom: 1px solid #9ececc;
+
+    > div {
         position: absolute;
-        left: 0;
-        bottom: 11em;
-        height: 8px;
+        width: 25px;
+        height: 25px;
+        bottom: -10px;
         background-color: white;
-        width: 100%;
-        border-top: 1px solid #9ececc;
-        border-bottom: 1px solid #9ececc;
+        border: 4px solid #8ebebc;
+        border-radius: 50%;
+        z-index: 1;
 
         > div {
             position: absolute;
-            width: 25px;
-            height: 25px;
-            bottom: -10px;
-            background-color: white;
-            border: 4px solid #8ebebc;
-            border-radius: 50%;
-            z-index: 1;
-
-            > div {
-                position: absolute;
-                width: 5em;
-                top: 0.5em;
-                left: -2.5em;
-                margin-left: 12.5px;
-            }
-        }
-
-        > #tl_predictionPeriod {
-            position: absolute;
-            left: 27em;
-            right: 0;
-            top: -1px;
-            height: 8px;
-            border: 0;
-            border-top: 1px solid #eba603;
-            border-bottom: 1px solid #eba603;
-            width: auto;
-            border-radius: 0px;
-
-            > div {
-                position: absolute;
-                top: -0.4em;
-                left: 0;
-                height: 1em;
-                width: 2px;
-                background-color: #eba603;
-                margin: 0;
-            }
-
-            > span {
-                display: block;
-                margin: auto;
-                margin-top: 5px;
-                text-align: center;
-            }
+            width: 5em;
+            top: 12px;
+            left: -2.5em;
+            margin-left: 12.5px;
         }
     }
 
-    #descriptionBar {
-        left: 0;
-        bottom: 0;
-        margin-left: 0;
-        //-webkit-appearance: none;
+    > #tl_predictionPeriod {
+        position: absolute;
+        right: 0;
+        top: -1px;
+        height: 8px;
         border: 0;
-        outline: 0;
-        background: #fff;
-        background: rgba(255, 255, 255, 0.75);
-        width: 100%;
-        border-radius: 0.35em;
-        box-shadow: inset 0 0.1em 0.1em 0 rgba(0, 0, 0, 0.05);
-        border: solid 1px rgba(0, 0, 0, 0.15);
-        @include vendor('transition', 'all 0.35s ease-in-out');
+        border-top: 1px solid #eba603;
+        border-bottom: 1px solid #eba603;
+        width: auto;
+        border-radius: 0px;
+
+        > div {
+            position: absolute;
+            top: -0.4em;
+            left: 0;
+            height: 1em;
+            width: 2px;
+            background-color: #eba603;
+            margin: 0;
+        }
+
+        > span {
+            display: block;
+            margin: auto;
+            margin-top: 5px;
+            text-align: center;
+        }
+    }
+}
+
+#descriptionBar {
+    margin-left: 0;
+    //-webkit-appearance: none;
+    border: 0;
+    outline: 0;
+    background: #fff;
+    background: rgba(255, 255, 255, 0.75);
+    width: 100%;
+    border-radius: 0.35em;
+    box-shadow: inset 0 0.1em 0.1em 0 rgba(0, 0, 0, 0.05);
+    border: solid 1px rgba(0, 0, 0, 0.15);
+    @include vendor('transition', 'all 0.35s ease-in-out');
+
+    &:hover {
+        box-shadow: 0 0 2px 1px #8ebebc;
+    }
+
+    > div {
+        cursor: default;
+
+        span {
+            display: inline-block;
+        }
 
         &:hover {
-            box-shadow: 0 0 2px 1px #8ebebc;
+            > span:first-child {
+                @include vendor('transition', 'all 0.35s ease-in-out');
+                font-weight: bold;
+            }
         }
 
-        > div {
-            cursor: default;
-
-            span {
-                display: inline-block;
-            }
-
-            &:hover {
-                > span:first-child {
-                    @include vendor('transition', 'all 0.35s ease-in-out');
-                    font-weight: bold;
-                }
-            }
-
-            > span:last-child, ul {
-                font-size: 0.7em;
-                line-height: 1.2em;
-                text-align: left;
-                margin-bottom: 1em;
-            }
+        > span:last-child, ul {
+            font-size: 0.7em;
+            line-height: 1.2em;
+            text-align: left;
+            margin-bottom: 1em;
         }
     }
 }
@@ -294,7 +307,7 @@
     > div {
         text-align: left;
 
-        >h4 {
+        > h4 {
             font-weight: 400;
         }
     }
@@ -341,6 +354,7 @@
         display: none;
         overflow: hidden;
         text-align: left;
+
         .row {
             margin-top: 0;
             margin-bottom: 2em;
