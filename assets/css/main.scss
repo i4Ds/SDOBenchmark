@@ -42,7 +42,7 @@
         position: absolute;
     }
 
-    .wl131, .wl171, .wl1600, .wlmagnetogram {
+    .wl131, .wl171, .wlmagnetogram {
         width: 10em;
 
         @include vendor('transition', 'all 0.2s ease-in-out');
@@ -77,11 +77,6 @@
     .wlmagnetogram {
         left: 1.5em;
         top: 2em;
-    }
-
-    .wl1600 {
-        left: 2.5em;
-        top: 4em;
     }
 
     .wlother {
@@ -130,40 +125,14 @@
         #timestepsRow3 {
             z-index: 1;
         }
-        /*.wl131 {
-            left: 0;
-            top: 0;
-        }
 
-        .wlmagnetogram {
-            left: 10px;
-            top: 20px;
-            left: 2em;
-            top: 4em;
-        }
-
-        .wl1600 {
-            left: 20px;
-            top: 40px;
-        }
-
-        .wlother {
-            left: 5px;
-            top: 90px;
-            font-size: 2em;
-        }
-
-        .wl171 {
-            left: 40px;
-            top: 80px;
-        }*/
         .wlother {
             > span {
                 font-size: 2em;
             }
         }
 
-        .wl131, .wl171, .wl1600, .wlmagnetogram {
+        .wl131, .wl171, .wlmagnetogram {
             &:hover {
                 z-index: 5;
                 width: 24em;
