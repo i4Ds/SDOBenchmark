@@ -7,7 +7,7 @@ import intervaltree
 import numpy as np
 import pandas as pd
 
-import flares.util as util
+import dataset.util as util
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +41,7 @@ def extract_events(raw_events: List[dict]) -> Tuple[List[dict], Dict[int, Tuple[
         for noaa_id, events in noaa_regions.items()
     }
 
-    # Extract SWPC flares and sort by start, peak and end times
+    # Extract SWPC dataset and sort by start, peak and end times
     swpc_flares = list(sorted(
         (event for event in raw_events if event["event_type"] == "FL" and event["frm_name"] == "SWPC"),
         key=lambda event: (
@@ -71,7 +71,7 @@ def map_flares(
         noaa_regions: Dict[int, Tuple[dt.datetime, dt.datetime, List[dict]]],
         raw_events: List[dict]
 ) -> Tuple[List[Tuple[dict, int]], List[dict]]:
-    # First, map all SWPC flares which contain a NOAA number
+    # First, map all SWPC dataset which contain a NOAA number
     mapped_flares = []
     unmapped_flares = []
     for event in swpc_flares:
@@ -87,10 +87,10 @@ def map_flares(
             assert region_number == 0
             unmapped_flares.append(event)
 
-    logger.debug("Mapped %d SWPC flares which contained a valid NOAA active region number", len(mapped_flares))
-    logger.debug("Could not map %d SWPC flares in first step", len(unmapped_flares))
+    logger.debug("Mapped %d SWPC dataset which contained a valid NOAA active region number", len(mapped_flares))
+    logger.debug("Could not map %d SWPC dataset in first step", len(unmapped_flares))
 
-    # Try to match all unmapped flares to SSW events and use their NOAA number if present
+    # Try to match all unmapped dataset to SSW events and use their NOAA number if present
     ssw_flares = filter(
         lambda event: event["event_type"] == "FL" and event["frm_name"] == "SSW Latest Events", raw_events
     )
@@ -150,8 +150,8 @@ def map_flares(
             logger.warning("NOAA active region %d referenced but not in data set, will be ignored", region_number)
             still_unmapped_flares.append(event)
 
-    logger.debug("Mapped %d SWPC flares after second step", len(mapped_flares))
-    logger.debug("Could not map %d SWPC flares after second step", len(still_unmapped_flares))
+    logger.debug("Mapped %d SWPC dataset after second step", len(mapped_flares))
+    logger.debug("Could not map %d SWPC dataset after second step", len(still_unmapped_flares))
 
     return mapped_flares, still_unmapped_flares
 
@@ -173,7 +173,7 @@ def active_region_time_ranges(
         unmapped_ranges.addi(unmapped_start, unmapped_end)
     unmapped_ranges.merge_overlaps()
 
-    # Create interval tree of mapped flares on the entire sun for fast lookup
+    # Create interval tree of mapped dataset on the entire sun for fast lookup
     mapped_flares_entire_sun = intervaltree.IntervalTree()
     for flare_event, _ in flare_mapping:
         mapped_flares_entire_sun.addi(flare_event["starttime"], flare_event["endtime"])
@@ -197,7 +197,7 @@ def active_region_time_ranges(
         prev_flux = flux
         prev_date = date
 
-    # tree where GOES > 8e-9 but no (mapped) flares present
+    # tree where GOES > 8e-9 but no (mapped) dataset present
     goes_noflare = goes_interval - mapped_flares_entire_sun
 
     total_free_count = 0
@@ -364,7 +364,7 @@ def _assert_active_region_time_ranges(
             assert idx == 0 or interval.begin > sorted_intervals[idx - 1].end, \
                 f"Found overlap between free intervals {interval} and {sorted_intervals[idx - 1]}"
 
-            # Check free regions and flares
+            # Check free regions and dataset
             assert len(region_ranges[interval]) == 1
 
         # Check distance between flare ranges
@@ -373,9 +373,9 @@ def _assert_active_region_time_ranges(
             assert idx == 0 \
                    or interval.begin + output_duration >= sorted_flare_intervals[idx - 1].end \
                    or interval.data <= sorted_flare_intervals[idx - 1].data, \
-                f"Found overlap between flares {interval} and {sorted_flare_intervals[idx - 1]}"
+                f"Found overlap between dataset {interval} and {sorted_flare_intervals[idx - 1]}"
 
-        # Check no unmapped flares are overlapped
+        # Check no unmapped dataset are overlapped
         for interval in region_ranges:
             assert len(unmapped_ranges[interval]) == 0, \
                 f"{interval} overlaps unmapped flare ranges {unmapped_ranges[interval]}"
@@ -479,7 +479,7 @@ def _sample_ranges(
         # Maximum number of samples so that no input ranges overlap
         max_samples = 1 + (range_values.end - range_values.start - output_duration) // input_duration
         if range_values.type != "free" and range_values.type >= "M" and max_samples > 1:
-            # Use at least two samples for M+ flares (if possible)
+            # Use at least two samples for M+ dataset (if possible)
             min_samples = 2
         else:
             min_samples = 1

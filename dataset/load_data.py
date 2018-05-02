@@ -11,10 +11,10 @@ import intervaltree
 import pandas as pd
 import simplejson as json
 
-import flares.util as util
-from flares.data.extract import load_hek_data, load_goes_flux, goes_files, load_all_goes_profiles
-from flares.data.load import sample_path, sample_exists, RequestSender, ImageLoader, OutputProcessor
-from flares.data.transform import extract_events, map_flares, active_region_time_ranges, sample_ranges, verify_sampling
+import dataset.util as util
+from dataset.data.extract import load_hek_data, load_goes_flux, goes_files, load_all_goes_profiles
+from dataset.data.load import sample_path, sample_exists, RequestSender, ImageLoader, OutputProcessor
+from dataset.data.transform import extract_events, map_flares, active_region_time_ranges, sample_ranges, verify_sampling
 
 DEFAULT_ARGS = {
     "start": dt.datetime(2012, 1, 1),
@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 
 # TODO: Handle merging and splitting active regions for test/training split
 # TODO: Check if active regions overlap each other to avoid duplicates
-# : Some active regions might still produce flares which are not detected by SWPC
+# : Some active regions might still produce dataset which are not detected by SWPC
 # : How should the peak flux for non-flaring active regions be calculated?
 # TODO: What HMI data should be used?
 
@@ -138,7 +138,7 @@ def transform_raw(
     logger.info('Extracting events from raw...')
     swpc_flares, noaa_active_regions = extract_events(raw_events)
     logger.debug(
-        "Extracted %d SWPC flares and %d (grouped) NOAA active regions", len(swpc_flares), len(noaa_active_regions)
+        "Extracted %d SWPC dataset and %d (grouped) NOAA active regions", len(swpc_flares), len(noaa_active_regions)
     )
 
     ranges_path = os.path.join(output_directory, f"ranges_{date_suffix}.csv")
@@ -153,7 +153,7 @@ def transform_raw(
 
         mapped_flares, unmapped_flares = map_flares(swpc_flares, noaa_active_regions, raw_events)
         logger.debug(
-            "Created flare mapping, resulting in %d mapped and %d unmapped flares",
+            "Created flare mapping, resulting in %d mapped and %d unmapped dataset",
             len(mapped_flares), len(unmapped_flares)
         )
 
