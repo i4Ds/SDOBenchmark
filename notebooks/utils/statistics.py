@@ -10,7 +10,6 @@ def flux_to_class(f: float, only_main=False):
     *free* = 1e-9, *B* >= 1e-7, *C* >= 1e-6, *M* >= 1e-5, and *X* >= 1e-4\
     See also: https://en.wikipedia.org/wiki/Solar_flare#Classification'
     decade = int(min(math.floor(math.log10(f)), -4))
-    print(f'decade: {decade}')
     main_class = goes_classes[decade + 9] if decade >= -8 else 'free'
     sub_class = str(round(10 ** -decade * f)) if main_class != 'free' and only_main != True else ''
     return main_class + sub_class
