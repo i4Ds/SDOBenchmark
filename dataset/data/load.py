@@ -260,7 +260,6 @@ class ImageLoader(object):
                     logger.error("Error while downloading data for sample %s (is skipped): %s", sample_id, e)
                     traceback.print_exc()
                     # Delete sample directory because it contains inconsistent data
-                    # TODO: Just delete this 1 input data, not the entire fits folder...
                     #shutil.rmtree(sample_directory, ignore_errors=True)
             else:
                 logger.info(f'Sample {sample_id} already exists')
@@ -495,7 +494,7 @@ class OutputProcessor(object):
 
                 if 'date-obs' not in current_map.meta:
                     # parse the date from the file name
-                    # TODO is current_map.date == date-obs?
+                    # (current_map.date == date-obs, yet date-obs is missing for HMI)
                     current_datetime_from_file_raw, _ = os.path.splitext(current_file)[0].split("_")
                     current_map.meta['date-obs'] = dt.datetime.strptime(current_datetime_from_file_raw, "%Y-%m-%dT%H%M%S")
 

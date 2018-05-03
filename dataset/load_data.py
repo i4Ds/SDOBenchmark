@@ -27,15 +27,8 @@ DEFAULT_ARGS = {
 
 logger = logging.getLogger(__name__)
 
-# : Make sure sampling makes actual sense
-
 # TODO: Handle merging and splitting active regions for test/training split
 # TODO: Check if active regions overlap each other to avoid duplicates
-# : Some active regions might still produce dataset which are not detected by SWPC
-# : How should the peak flux for non-flaring active regions be calculated?
-# TODO: What HMI data should be used?
-
-# : SDO sensors collect less intensity over time, should this be incorporated?
 
 
 def main():
