@@ -21,7 +21,7 @@ DEFAULT_ARGS = {
     "end": dt.datetime(2018, 1, 1),
     "input_hours": 12,
     "output_hours": 24,
-    "cadence_hours": 1,
+    "time_steps": [0, 7*60, 10*60+30, 11*60+50],
     "seed": 726527
 }
 
@@ -63,7 +63,7 @@ def main():
     create_output(
         path_helper,
         args.email,
-        args.cadence_hours,
+        args.time_steps,
         date_suffix
     )
 
@@ -224,7 +224,7 @@ def transform_raw(
 def create_output(
         path_helper: util.PathHelper,
         email_address: str,
-        cadence_hours: int,
+        time_steps: List[int],
         date_suffix: str
 ):
     logger.info("Creating output")
@@ -260,10 +260,10 @@ def create_output(
     _, noaa_active_regions = extract_events(raw_events)
 
     logger.info("Creating test samples")
-    _create_output(test_samples, test_directory, test_fits_directory, email_address, cadence_hours, noaa_active_regions)
+    _create_output(test_samples, test_directory, test_fits_directory, email_address, time_steps, noaa_active_regions)
 
     logger.info("Creating training samples")
-    _create_output(training_samples, training_directory, training_fits_directory, email_address, cadence_hours, noaa_active_regions)
+    _create_output(training_samples, training_directory, training_fits_directory, email_address, time_steps, noaa_active_regions)
 
 
 def _create_output(
@@ -271,7 +271,7 @@ def _create_output(
         output_directory: str,
         fits_directory: str,
         email_address: str,
-        cadence_hours: int,
+        time_steps: List[int],
         noaa_regions: Dict[int, Tuple[dt.datetime, dt.datetime, List[dict]]]
 ):
     if not os.path.isdir(output_directory):
@@ -285,7 +285,7 @@ def _create_output(
     samples[['start','end','peak_flux']].to_csv(meta_file, sep=",", index_label="id")
     logger.info("Wrote meta data file")
 
-    _create_image_output(samples, output_directory, fits_directory, email_address, cadence_hours, noaa_regions)
+    _create_image_output(samples, output_directory, fits_directory, email_address, time_steps, noaa_regions)
     logger.info("Wrote samples")
 
 
@@ -294,7 +294,7 @@ def _create_image_output(
         output_directory: str,
         fits_directory: str,
         email_address: str,
-        cadence_hours: int,
+        time_steps: List[int],
         noaa_regions: Dict[int, Tuple[dt.datetime, dt.datetime, List[dict]]]
 ):
     # Create a list of samples which are to be created
@@ -318,9 +318,9 @@ def _create_image_output(
         cache_queue = manager.Queue()
 
         # Create workers
-        request_sender = RequestSender(download_queue, cache_queue, output_directory, email_address, cadence_hours, os.path.join(output_directory, 'requestsCache.json'))
+        request_sender = RequestSender(download_queue, cache_queue, output_directory, email_address, time_steps, os.path.join(output_directory, 'requestsCache.json'))
         image_loader = ImageLoader(download_queue, processing_queue, output_directory, fits_directory)
-        output_processor = OutputProcessor(processing_queue, output_directory, fits_directory, samples, noaa_regions, cadence_hours)
+        output_processor = OutputProcessor(processing_queue, output_directory, fits_directory, samples, noaa_regions, time_steps)
 
         # Start workers
         logger.debug("Starting output processor workers")
@@ -411,7 +411,7 @@ def parse_args():
         "--output-hours", default=DEFAULT_ARGS["output_hours"], type=int, help="Number of hours for output"
     )
     parser.add_argument(
-        "--cadence-hours", default=DEFAULT_ARGS["cadence_hours"], type=int, help="Input cadence in hours"
+        "--time_steps", default=DEFAULT_ARGS["time_steps"], type=int, help="Input image time stamps after input start (i.e. starting 12h before prediction window)"
     )
     parser.add_argument(
         "--seed", default=DEFAULT_ARGS["seed"], type=int, help="Seed which is used for test/training sampling"

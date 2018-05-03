@@ -85,11 +85,11 @@ class RequestSender(object):
 
     CACHEPROCESS = None
 
-    def __init__(self, output_queue: multiprocessing.Queue, cache_queue: multiprocessing.Queue, output_directory: str, notify_email: str, cadence_hours: int, cache_dir: str):
+    def __init__(self, output_queue: multiprocessing.Queue, cache_queue: multiprocessing.Queue, output_directory: str, notify_email: str, time_steps: List[int], cache_dir: str):
         self._output_queue = output_queue
         self._output_directory = output_directory
         self._notify_email = notify_email
-        self._cadence_hours = cadence_hours
+        self._time_steps = time_steps
         self._cache_dir = cache_dir
         self._cachingQueue = cache_queue
         self._initCache()
@@ -129,7 +129,7 @@ class RequestSender(object):
         # Submit requests
         requests = []
         for series_name in self.SERIES_NAMES:
-            for hd in [0, 7*60, 10*60+30, 11*60+50]: # [] minutes after input start. (last = 10min before prediction period)
+            for hd in self._time_steps: # [] minutes after input start. (last = 10min before prediction period)
                 qt = start + dt.timedelta(minutes=hd)
                 if not _sample_images_exist(fp, series_name, qt):
                     query = f"{series_name}[{qt:%Y.%m.%d_%H:%M:%S_TAI}]"
@@ -409,14 +409,14 @@ class OutputProcessor(object):
             fits_directory: str,
             meta_data: pd.DataFrame,
             noaa_regions: Dict[int, Tuple[dt.datetime, dt.datetime, List[dict]]],
-            cadence_hours: int
+            time_steps: List[int]
     ):
         self._input_queue = input_queue
         self._output_directory = output_directory
         self._fits_directory = fits_directory
         self._meta_data = meta_data
         self._noaa_regions = noaa_regions
-        self._cadence_hours = cadence_hours
+        self._time_steps = time_steps
 
     def __call__(self, *args, **kwargs):
         logger.debug("Output processor started")
@@ -467,7 +467,7 @@ class OutputProcessor(object):
             available_times[current_wavelength].append((current_datetime, current_file))
 
         # Assign images to actual time steps
-        time_steps = [(sample_meta_data.start + dt.timedelta(minutes=offset), dict()) for offset in [0, 7*60, 10*60+30, 11*60+50]]
+        time_steps = [(sample_meta_data.start + dt.timedelta(minutes=offset), dict()) for offset in self._time_steps]
         for current_wavelength, current_available_times in available_times.items():
             for current_datetime, current_file in current_available_times:
                 current_step_images = min(time_steps, key=lambda step: abs(step[0] - current_datetime))[1]
