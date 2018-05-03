@@ -305,6 +305,37 @@
     }
 }
 
+#currentStateTable {
+    td:nth-child(4), td:nth-child(5) {
+        display: none;
+    }
+
+    thead > tr {
+        cursor: pointer;
+
+        &:after {
+            content: '\02795'; /* Unicode character for "plus" sign (+) */
+            font-size: 13px;
+            color: #fff;
+            float: right;
+            line-height: 1em;
+            margin-right: 0.4em;
+        }
+    }
+
+    &.active {
+        thead > tr {
+            &:after {
+                content: "\2796"; /* Unicode character for "minus" sign (-) */
+            }
+        }
+
+        td:nth-child(4), td:nth-child(5) {
+            display: table-cell;
+        }
+    }
+}
+
 #faqcontainer {
     .accordion {
         cursor: pointer;

@@ -46,11 +46,16 @@ order: 3
         <p>
             The easy answer is that we can't artificially produce or simulate more flares. But there is also
             a strategic choice behind it:<br />
-            Imagine you have to train a network to recognize cats. We'd give you a training image set of 10 million
-            images, recorded by our cameras around our neighbourhood. While 10 million images is a great size
-            for deep learning, you'd soon come to realize that all our images are from the same 1'000 cats. As a
-            consequence, your model would overfit horribly.<br />
-            We therefore chose to preselect only a few of the most different images per cat.
+            Imagine you have to train a network to recognize cats. We'd give you a training set of 10 million
+            images, recorded by cameras around our neighbourhood. While 10 million images is a great size
+            for deep learning, you'd soon come to realize that all our images are from the same 100 cats. As a
+            consequence, your model would overfit heavily and just recognize those 100 cats e.g. by some specific
+            individual features. That's why we chose to preselect only a few of the most different images per cat.<br />
+            <br />
+            The same is true for our images of Active Regions. It would learn to recognize these patches of the sun,
+            and then "look up" in its neurons whether this specific patch will flare or not flare.<br />
+            (This is also the reason why we have to make sure to have different cats / Active Regions in the training
+            and test sets. Simply selecting images randomly would not be sufficient.)
         </p>
     </div>
 
@@ -61,7 +66,8 @@ order: 3
             much higher than in calm or low activities. While this correlates with our intentions, the data imbalance
             helps to rebalance the otherwise predominant strong flare predictions to some degree.<br />
             Further, while there are plenty of norms around, the mean absolute error is simple and exists out of the box in practically
-            all machine learning frameworks.
+            all machine learning frameworks.<br />
+            Other standard metrics (e.g. mean squared error) have less desireable characteristics for this prediction problem.
         </p>
     </div>
 
@@ -74,21 +80,29 @@ order: 3
         </p>
     </div>
 
+    <button class="accordion">Why not predict more than 24h/more detail/on higher resolution?</button>
+    <div class="accordionpanel">
+        <p>
+            Currently, it is still unknown how well models will perform on this dataset. Our goal is to create a benchmark as simple as
+            possible, yet without sacrificing scientific value.<br />
+            We will gladly provide a more difficult prediction problem at a later stage.
+        </p>
+    </div>
+
+    <button class="accordion">What are your thoughts on data augmentation?</button>
+    <div class="accordionpanel">
+        <p>
+            Except for horizontal flipping, I claim that all data augmentation will alter the underlying physics.<br />
+            When you flip the images horizontally, the solar rotation, the perspective distortions and the spherical
+            projection remain the same. And there is no known difference between Active Regions in the upper and
+            the lower hemispheres of the sun.
+        </p>
+    </div>
+
     <button class="accordion">Where can I contact someone for questions or discussions?</button>
     <div class="accordionpanel">
         <p>
             On the <a href="https://github.com/i4Ds/SDOBenchmark/issues">SDOBenchmark GitHub issues page</a>.
-        </p>
-    </div>
-
-    <button class="accordion">Why not predict more hours/more detail/on higher resolution?</button>
-    <div class="accordionpanel">
-        <p>
-            Currently, it is still unknown how well models will perform on this dataset. We believe in the
-            <a href="https://en.wikipedia.org/wiki/KISS_principle">KISS principle</a>, and while the prediction
-            resolution might seem low, a well performing model on this data would still
-            provide great value.<br />
-            If models perform well, we will gladly provide a more difficult prediction problem.
         </p>
     </div>
 </div>

@@ -4,87 +4,92 @@
 	Free for personal and commercial use under the CCA 3.0 license (html5up.net/license)
 */
 
-(function($) {
+(function ($) {
 
-	skel.breakpoints({
-		wide: '(min-width: 961px) and (max-width: 1880px)',
-		normal: '(min-width: 961px) and (max-width: 1620px)',
-		narrow: '(min-width: 961px) and (max-width: 1320px)',
-		narrower: '(max-width: 960px)',
-		mobile: '(max-width: 736px)'
-	});
+    skel.breakpoints({
+        wide: '(min-width: 961px) and (max-width: 1880px)',
+        normal: '(min-width: 961px) and (max-width: 1620px)',
+        narrow: '(min-width: 961px) and (max-width: 1320px)',
+        narrower: '(max-width: 960px)',
+        mobile: '(max-width: 736px)'
+    });
 
-	$(function() {
+    $(function () {
 
-		var	$window = $(window),
-			$body = $('body');
+        var $window = $(window),
+            $body = $('body');
 
-		// Disable animations/transitions until the page has loaded.
-			$body.addClass('is-loading');
+        // Disable animations/transitions until the page has loaded.
+        $body.addClass('is-loading');
 
-			$window.on('load', function() {
-				$body.removeClass('is-loading');
-			});
+        $window.on('load', function () {
+            $body.removeClass('is-loading');
+        });
 
-		// CSS polyfills (IE<9).
-			if (skel.vars.IEVersion < 9)
-				$(':last-child').addClass('last-child');
+        // CSS polyfills (IE<9).
+        if (skel.vars.IEVersion < 9)
+            $(':last-child').addClass('last-child');
 
-		// Fix: Placeholder polyfill.
-			$('form').placeholder();
+        // Fix: Placeholder polyfill.
+        $('form').placeholder();
 
-		// Prioritize "important" elements on mobile.
-			skel.on('+mobile -mobile', function() {
-				$.prioritize(
-					'.important\\28 mobile\\29',
-					skel.breakpoint('mobile').active
-				);
-			});
+        // Prioritize "important" elements on mobile.
+        skel.on('+mobile -mobile', function () {
+            $.prioritize(
+                '.important\\28 mobile\\29',
+                skel.breakpoint('mobile').active
+            );
+        });
 
-		// Scrolly links.
-			$('.scrolly').scrolly();
+        // Scrolly links.
+        $('.scrolly').scrolly();
 
-		// Nav.
-			var $nav_a = $('#nav a.scrolly');
+        // Nav.
+        var $nav_a = $('#nav a.scrolly');
 
-			// Scrolly-fy links.
-				$nav_a
-					.scrolly()
-					.on('click', function(e) {
+        // Scrolly-fy links.
+        $nav_a
+            .scrolly()
+            .on('click', function (e) {
 
-						var t = $(this),
-							href = t.attr('href');
+                var t = $(this),
+                    href = t.attr('href');
 
-						if (href[0] != '#')
-							return;
+                if (href[0] != '#')
+                    return;
 
-						e.preventDefault();
+                e.preventDefault();
 
-						// Clear active and lock scrollzer until scrolling has stopped
-							$nav_a
-								.removeClass('active')
-								.addClass('scrollzer-locked');
+                // Clear active and lock scrollzer until scrolling has stopped
+                $nav_a
+                    .removeClass('active')
+                    .addClass('scrollzer-locked');
 
-						// Set this link to active
-							t.addClass('active');
+                // Set this link to active
+                t.addClass('active');
 
-					});
+            });
 
-			// Initialize scrollzer.
-				var ids = [];
+        // Initialize scrollzer.
+        var ids = [];
 
-				$nav_a.each(function() {
+        $nav_a.each(function () {
 
-					var href = $(this).attr('href');
+            var href = $(this).attr('href');
 
-					if (href[0] != '#')
-						return;
+            if (href[0] != '#')
+                return;
 
-					ids.push(href.substring(1));
+            ids.push(href.substring(1));
 
-				});
+        });
 
-                $.scrollzer(ids, { pad: 200, lastHack: true });
+        $.scrollzer(ids, { pad: 200, lastHack: true });
+
+        // current state
+        $('#currentStateTable>thead').click(function () {
+            $('#currentStateTable')[0].classList.toggle('active');
+        });
 
         // accordion
         $('.accordion').click(function () {
@@ -99,34 +104,34 @@
             }
         });
 
-		// Header (narrower + mobile).
+        // Header (narrower + mobile).
 
-			// Toggle.
-				$(
-					'<div id="headerToggle">' +
-						'<a href="#header" class="toggle"></a>' +
-					'</div>'
-				)
-					.appendTo($body);
+        // Toggle.
+        $(
+            '<div id="headerToggle">' +
+            '<a href="#header" class="toggle"></a>' +
+            '</div>'
+        )
+            .appendTo($body);
 
-			// Header.
-				$('#header')
-					.panel({
-						delay: 500,
-						hideOnClick: true,
-						hideOnSwipe: true,
-						resetScroll: true,
-						resetForms: true,
-						side: 'left',
-						target: $body,
-						visibleClass: 'header-visible'
-					});
+        // Header.
+        $('#header')
+            .panel({
+                delay: 500,
+                hideOnClick: true,
+                hideOnSwipe: true,
+                resetScroll: true,
+                resetForms: true,
+                side: 'left',
+                target: $body,
+                visibleClass: 'header-visible'
+            });
 
-			// Fix: Remove transitions on WP<10 (poor/buggy performance).
-				if (skel.vars.os == 'wp' && skel.vars.osVersion < 10)
-					$('#headerToggle, #header, #main')
-						.css('transition', 'none');
+        // Fix: Remove transitions on WP<10 (poor/buggy performance).
+        if (skel.vars.os == 'wp' && skel.vars.osVersion < 10)
+            $('#headerToggle, #header, #main')
+                .css('transition', 'none');
 
-	});
+    });
 
 })(jQuery);
