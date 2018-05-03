@@ -164,8 +164,9 @@ After all FITS files of a sample are downloaded, they are further processed. Fir
 2. AIA level 1 to level 1.5 processing is performed.
 3. The target active region coordinates with regard to solar rotation
    and the time difference is calculated on the current image.
-4. A patch around the rotated coordinates is cut out and assigned to
-   the time step for its wavelength.
+4. A patch around the rotated coordinates is cut out
+5. The resulting data is clipped by predefined clipping ranges
+6. Then the image is saved to disk with half resolution as 8-bit JPEG.
 
 Open Points
 ===========
