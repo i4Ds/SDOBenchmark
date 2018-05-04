@@ -7,17 +7,25 @@ import os
 
 class SDOBenchmarkGenerator(keras.utils.data_utils.Sequence):
     'Generates data for keras'
-    def __init__(self, base_path, batch_size=32, dim=(256, 256, 4), shuffle=True):
+    def __init__(self, base_path, batch_size=32, dim=(256, 256, 4), shuffle=True, augment=True):
         'Initialization'
         self.batch_size = batch_size
         self.base_path = base_path
         self.dim = dim
-        self.data = self.loadCSV()
+        self.data = self.loadCSV(augment)
         self.shuffle = shuffle
         self.on_epoch_end()
 
-    def loadCSV(self):
-        return pd.read_csv(os.path.join(self.base_path, 'train.csv'), sep=";", parse_dates=["start", "end", "peak"], index_col="id")
+    def loadCSV(self, augment=True):
+        data = pd.read_csv(os.path.join(self.base_path, 'train.csv'), sep=";", parse_dates=["start", "end", "peak"], index_col="id")
+        # augment by doubling the data and flagging them to be flipped horizontally
+        data['flip'] = 1
+        if augment:
+            new_data = data.copy()
+            new_data.index += '_copy'
+            new_data['flip'] = -1
+            data = pd.concat([data, new_data])
+        return data
 
     def on_epoch_end(self):
         'Updates indexes after each epoch'
@@ -38,6 +46,7 @@ class SDOBenchmarkGenerator(keras.utils.data_utils.Sequence):
         X[0] = np.array((data['start'] - pd.Timestamp('2012-01-01 00:00:00')).astype(np.int64) // (24 * 3600 * 10 ** 9))
         X[0] /= (pd.Timestamp('2018-01-01 00:00:00') - pd.Timestamp('2012-01-01 00:00:00')).astype(np.int64) // (24 * 3600 * 10 ** 9)
         X[1] = np.array(map(self.loadImg, data.index))
+        X[1] = X[1][:, ::data['flip']]
         y = np.array(data['peak_flux'])
 
         return X, y
