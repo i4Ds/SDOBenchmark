@@ -1,29 +1,39 @@
-from skimage.io import imread
 import keras.utils.data_utils
 from keras.preprocessing.image import load_img, img_to_array
 import pandas as pd
 import numpy as np
 import os
+import datetime as dt
 
 class SDOBenchmarkGenerator(keras.utils.data_utils.Sequence):
-    'Generates data for keras'
-    def __init__(self, base_path, batch_size=32, dim=(256, 256, 4), shuffle=True, augment=True):
+    'Generates data for keras \
+    Inspired by https://stanford.edu/~shervine/blog/keras-how-to-generate-data-on-the-fly.html'
+    def __init__(self, base_path, batch_size=32, dim=(4, 256, 256), channels=['magnetogram'], shuffle=True, augment=True):
         'Initialization'
         self.batch_size = batch_size
         self.base_path = base_path
-        self.dim = dim
+        self.dim = dim if len(dim) == 4 else dim + (len(channels),)
+        self.channels = channels
+        self.time_steps = [0, 7*60, 10*60+30, 11*60+50]
         self.data = self.loadCSV(augment)
         self.shuffle = shuffle
         self.on_epoch_end()
 
     def loadCSV(self, augment=True):
-        data = pd.read_csv(os.path.join(self.base_path, 'train.csv'), sep=";", parse_dates=["start", "end", "peak"], index_col="id")
+        data = pd.read_csv(os.path.join(self.base_path, 'meta_data.csv'), sep=",", parse_dates=["start", "end"], index_col="id")
+
+        # TODO: Remove
+        print('data before cleaning: ' + str(len(data)))
+        data = data[[os.path.isdir(os.path.join(self.base_path, *sample_id.replace('_copy', '').split("_", 1))) for sample_id in data.index]]
+        print('data after cleaning: ' + str(len(data)))
+
+
         # augment by doubling the data and flagging them to be flipped horizontally
-        data['flip'] = 1
+        data['flip'] = False
         if augment:
             new_data = data.copy()
             new_data.index += '_copy'
-            new_data['flip'] = -1
+            new_data['flip'] = True
             data = pd.concat([data, new_data])
         return data
 
@@ -43,25 +53,33 @@ class SDOBenchmarkGenerator(keras.utils.data_utils.Sequence):
 
         # Generate data
         data = self.data.iloc[indexes]
-        X[0] = np.array((data['start'] - pd.Timestamp('2012-01-01 00:00:00')).astype(np.int64) // (24 * 3600 * 10 ** 9))
-        X[0] /= (pd.Timestamp('2018-01-01 00:00:00') - pd.Timestamp('2012-01-01 00:00:00')).astype(np.int64) // (24 * 3600 * 10 ** 9)
-        X[1] = np.array(map(self.loadImg, data.index))
-        X[1] = X[1][:, ::data['flip']]
+        X[0] = np.asarray(list(map(self.loadImg, data.index)))
+        ind = np.where(data['flip'])
+        X[0][ind] = X[0][ind, ::-1, ...]
+        X[1] = (data['start'] - pd.Timestamp('2012-01-01 00:00:00')).view('int64')
+        X[1] /= (pd.Timestamp('2018-01-01 00:00:00') - pd.Timestamp('2012-01-01 00:00:00')).view('int64')
         y = np.array(data['peak_flux'])
-
         return X, y
 
     def loadImg(self, sample_id):
-        'Load the 4 images as 4 channels'
-        ar_nr, p = sample_id.split("_", 1)
+        'Load the images of each timestep as channels'
+        ar_nr, p = sample_id.replace('_copy','').split("_", 1)
         path = os.path.join(self.base_path, ar_nr, p)
 
         slices = np.zeros(self.dim)
-        i = 0
-        for img in os.listdir(path):
-            if img.endswith('_magnetogram.jpg'):
-                slices[:,:,i] = img_to_array(load_img(path, grayscale=True))
-                i += 1
+
+        sample_date = dt.datetime.strptime(p[:p.rfind('_')], "%Y_%m_%d_%H_%M_%S")
+        time_steps = [sample_date + dt.timedelta(minutes=offset) for offset in self.time_steps]
+        for img in [name for name in os.listdir(path) if name.endswith('.jpg')]:
+            img_datetime_raw, img_wavelength = os.path.splitext(img)[0].split("__")
+            img_datetime = dt.datetime.strptime(img_datetime_raw, "%Y-%m-%dT%H%M%S")
+
+            # calc wavelength and datetime index
+            datetime_index = [di[0] for di in enumerate(time_steps) if abs(di[1] - img_datetime) < dt.timedelta(minutes=15)]
+            if img_wavelength in self.channels and len(datetime_index) >= 0:
+                slices[datetime_index,:,:,self.channels.index(img_wavelength)] = \
+                    np.squeeze(img_to_array(load_img(os.path.join(path, img), grayscale=True)), 2)
+
 
         return slices
 
