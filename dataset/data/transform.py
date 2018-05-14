@@ -487,7 +487,7 @@ def _sample_ranges(
 
         input_start = range_values.start - input_duration
         total_offset = range_values.end - range_values.start - output_duration \
-                             - range_samples * input_duration
+                             - (range_samples - 1) * input_duration
         # split total offset sum into range_samples pieces
         offset_splits = np.random.uniform(size=(range_samples-1))
         offset_splits = offset_splits / np.sum(offset_splits) * total_offset
@@ -565,7 +565,8 @@ def _verify_sampling_internal(
 
     logger.info("Verifying that inputs don't overlap")
     prev_sample_end = dt.datetime(2000,1,1)
-    for sample_id, sample_values in samples.sort_values(by=['id']).iterrows():
+    samples = samples.sort_index()
+    for sample_id, sample_values in samples.iterrows():
         assert sample_values.start > prev_sample_end, \
             f"Sample {sample_id} overlaps with the previous sample's input period"
         prev_sample_end = sample_values.start
