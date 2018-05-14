@@ -22,12 +22,6 @@ class SDOBenchmarkGenerator(keras.utils.data_utils.Sequence):
     def loadCSV(self, augment=True):
         data = pd.read_csv(os.path.join(self.base_path, 'meta_data.csv'), sep=",", parse_dates=["start", "end"], index_col="id")
 
-        # TODO: Remove
-        print('data before cleaning: ' + str(len(data)))
-        data = data[[os.path.isdir(os.path.join(self.base_path, *sample_id.replace('_copy', '').split("_", 1))) for sample_id in data.index]]
-        print('data after cleaning: ' + str(len(data)))
-
-
         # augment by doubling the data and flagging them to be flipped horizontally
         data['flip'] = False
         if augment:
