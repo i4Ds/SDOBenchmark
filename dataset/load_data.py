@@ -37,6 +37,7 @@ def main():
     log_level = logging.DEBUG if args.debug else logging.INFO
     util.configure_logging(log_level)
 
+    print(args.fitsdir)
     path_helper = util.PathHelper(args.directory, args.fitsdir)
 
     # Data loading
@@ -155,7 +156,7 @@ def transform_raw(
             logger.info('Loading GOES curves...')
             goes = load_all_goes_profiles(os.path.join(input_directory, "goes"))
 
-        logger.info('Computing ranges...')
+        logger.info('Computing ranges. This might take an hour or two...')
         ranges = active_region_time_ranges(
             input_duration, output_duration, noaa_active_regions, mapped_flares, unmapped_flares, goes
         )
