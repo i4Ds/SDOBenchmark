@@ -27,7 +27,7 @@ DEFAULT_ARGS = {
 
 logger = logging.getLogger(__name__)
 
-# TODO: Handle merging and splitting active regions for test/training split
+# TODO: Handle the merging and splitting of ARs. Sometimes ARs "suddenly?" get a new number
 # TODO: Check if active regions overlap each other to avoid duplicates
 
 
