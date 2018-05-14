@@ -563,14 +563,6 @@ def _verify_sampling_internal(
         assert sample_values.end + output_duration <= region_end + dt.timedelta(seconds=1), \
             f"Sample {sample_id} output end {sample_values.end + output_duration} ends after the corresponding region end {region_end + dt.timedelta(seconds=1)}"
 
-    logger.info("Verifying that inputs don't overlap")
-    prev_sample_end = dt.datetime(2000,1,1)
-    samples = samples.sort_index()
-    for sample_id, sample_values in samples.iterrows():
-        assert sample_values.start > prev_sample_end, \
-            f"Sample {sample_id} overlaps with the previous sample's input period"
-        prev_sample_end = sample_values.start
-
     # Very slow. Max difference detected was 1 order of magnitude (i.e. 10x)
     '''logger.info("Verifying that peak seems present in the GOES curve (GOES flux > peak_flux)")
     for sample_id, sample_values in samples.iterrows():
