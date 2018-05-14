@@ -155,6 +155,7 @@ def transform_raw(
             logger.info('Loading GOES curves...')
             goes = load_all_goes_profiles(os.path.join(input_directory, "goes"))
 
+        logger.info('Computing ranges...')
         ranges = active_region_time_ranges(
             input_duration, output_duration, noaa_active_regions, mapped_flares, unmapped_flares, goes
         )
