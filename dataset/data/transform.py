@@ -560,10 +560,11 @@ def _verify_sampling_internal(
         assert region_start <= sample_values.start, \
             f"Sample {sample_id} input start {sample_values.start} is before the corresponding region start {region_start}"
 
+        # not necessarily the case, but the way we process events this holds true.
         assert sample_values.end + output_duration <= region_end + dt.timedelta(seconds=1), \
             f"Sample {sample_id} output end {sample_values.end + output_duration} ends after the corresponding region end {region_end + dt.timedelta(seconds=1)}"
 
-    # Very slow. Max difference detected was 1 order of magnitude (i.e. 10x)
+    # Very slow
     '''logger.info("Verifying that peak seems present in the GOES curve (GOES flux > peak_flux)")
     for sample_id, sample_values in samples.iterrows():
         if sample_values.peak_flux > 5e-9: # A is 1e-8

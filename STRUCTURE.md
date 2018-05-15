@@ -66,62 +66,76 @@ The mapping is performed as follows:
 This results in a list of SWPC flare events for each NOAA active region and an
 additional list of SWPC flares which could not be assigned to any active region.
 
-Each active region is individually considered and split into ranges.
+
+Each active region is split into ranges:
 
 First, the whole active region duration is considered *free* (usable as non-flaring
-prediction). Afterwards, each flare mapped to the active region is individually processed.
+prediction). Then for each flare, a window *flare_peak_time +- output_duration* is 
+chopped from the free ranges. This ensures that prediction windows on free active region
+durations don't contain flares.
 
-The range in which a prediction window would contain the flare is chopped from the free ranges.
-This ensures that wherever inside a free range a prediction window is placed,
-the prediction window will never contain any flare.
+Further, parts of the free range are removed where the GOES curve exceeds 8e-9, i.e.
+where there's some activity which was not labeled as a flare. Since there are plenty
+of free ranges to choose from, we don't lose valuable data by this data cleaning.
 
 A flare's range has to fulfill the following criteria:
 
-- The prediction window can be placed anywhere inside the range while containing the flare.
+- A prediction window can be placed anywhere inside the range while containing the flare.
 - The flare's peak flux is highest in its range.
-- The distance between the range start and the active region start is at least as long as the  input duration (default 12h), guaranteeing that whenever the prediction window starts, all inputs are in the active region's time range.
-
-Parts of the free range are removed where the GOES curve exceeds 8e-9.
+- The distance between the range start and the active region start is at least as long as the
+  input duration (default 12h), guaranteeing that whenever the prediction window starts, all 
+  inputs are in the active region's time range.
 
 After all flares have been processed, the active region has a list of ranges which are either
-flaring or free and which are non-intersecting.
+flaring or free.
 
 The ranges are post-processed by chopping out the durations of all SWPC flares which could not
-be assigned to any NOAA active region. This way, the prediction target for each range is
-guaranteed to not be accidentally too low.
+be assigned to any NOAA active region. This way, we avoid having prediction targets that are
+too low by accident.
 
-Finally, all ranges which are shorter than the prediction period are discarded as they are
+Finally, all ranges which are shorter than the prediction period are discarded, as they are
 of no use.
 
 Sampling
 --------
-During the sampling step, NOAA active regions are first split into test and training sets
-and afterwards processed to create actual samples for the active region ranges.
+During the sampling step, active regions are first split into test and training sets.
+Afterwards, samples are generated from the active region's ranges.
 
-To ensure an unbiased test set, each active region is assigned to only one set. First, active regions are grouped by their largest flare's GOES class (letter and first digit). Active regions without any flares are grouped into a separate *free* group.
+To ensure an unbiased test set, each active region is assigned to only one set. First, active 
+regions are grouped by their largest flare's GOES class (letter and first digit). Active regions
+without any flares are grouped into a separate *free* group.
 
-Test set active regions are then sampled from those groups (except *free*) by looking at each group individually:
+Test set active regions are then sampled from each of those groups (except *free*):
 
-- If the group contains less than 6 active regions, a single random active region is assigned to the test set with a 50% chance.
+- If the group contains less than 6 active regions, a single random active region is assigned 
+  to the test set with a 50% chance.
 - Otherwise, 3 active regions are assigned to the test set at random.
 
 The X flare of September 2017 is an exception and will always be in the test set.
 
-Afterwards, active regions from the *free* group are assigned to the test set at random. We put 1/4th of the number of flaring active regions in the test set.
+Afterwards, active regions from the *free* group are assigned to the test set at random. The
+number of picks is 1/4th of the test set's total number of flaring active regions.
 
 All active regions which were not assigned to the test set are then assigned to the training set.
 
-Individual active regions in each set are further processed to create actual samples.
-Each active region range is split into a number of samples, each sample being an input time window and a target prediction. Input time windows are not allowed to overlap, thus creating an upper bound of the number of samples resulting from a single range. The minimum number of samples of a range is determined as follows:
+After all active regions are assigned, samples are generated from their ranges:
+Each active region range is split into a number of samples, each sample being an input time window
+and a target prediction. Input time windows are not allowed to overlap, thus creating an upper 
+bound of the number of samples resulting from a single range. The minimum number of samples of a
+range is determined as follows:
 
 - If the range's target prediction is an M or larger flare and the maximum number of samples
   is more than 1, the minimum number of samples is 2.
 - Otherwise, the minimum number of samples is 1.
 
-The number of samples is then uniformly chosen between the minimum and maximum number of samples (because we do not want neural nets to base predictions on sample interval times).
-The chosen number of input windows are then randomly taken from the range so that no two input windows overlap.
+The number of samples is then uniformly chosen between the minimum and maximum number of samples 
+(because we want to avoid having neural nets base predictions on sample interval times).
+These input windows are then randomly taken from the range so that no two input 
+windows overlap.
 
-It has to be noted that an active region range defines a prediction period. Thus, the first possible input window starts before the region range and the last possible input window ends before the range end.
+It has to be noted that an active region range defines a prediction period. Thus, the first 
+possible input window starts before the region range and the last possible input window ends 
+before *range end - output_duration*.
 
 Sampling Validation
 -------------------
@@ -130,8 +144,8 @@ Created samples are validated to catch conceptual or implementation issues.
 First, it is ensured that no active region is present in both the test and training set.
 Afterwards, each sample is validated individually by checking the following:
 
-- Is the duration of each sample equal to the input duration?
-- Does each sample's peak flux happen after the input duration?
+- Is the duration of each sample equal to *input_hours*?
+- Does each sample's peak flux time happen after the input duration?
 - Does each sample's peak flux happen during in the prediction window?
 - Is each sample's input duration fully contained in its active region duration?
 - Is each sample's prediction window fully contained in its active region duration?
@@ -148,34 +162,31 @@ Finally, the actual samples are created in three steps:
 2. The FITS "images" of a completed request are downloaded.
 3. Downloaded FITS files are processed to create output images.
 
-Due to the nature of the data, the output creation is parallelized. Each of the three steps are executed in parallel for a number of samples at the same time.
+Each of the three steps are executed in parallel for a number of samples at the same time.
 
-The creation of samples is working with plenty of retries and fallbacks, e.g. retrying after connection issues or extending FITS files with additionally requested header keys.
+The creation of samples is working with plenty of retries and fallbacks, e.g. retrying after 
+connection issues or extending FITS files with additionally requested header keys.
 
-JSOC requests are issued in the *as-is* format and *url-quick* protocol. Consult [drms.readthedocs.io](http://drms.readthedocs.io/en/stable/tutorial.html#url-quick-as-is) for further details.
+JSOC requests are issued in the *as-is* format and *url-quick* protocol. Consult 
+[drms.readthedocs.io](http://drms.readthedocs.io/en/stable/tutorial.html#url-quick-as-is) 
+for further details.
 
-FITS files are downloaded into a temporary *_fits_temp* directory. This directory will be deleted after the downloaded images have been processed. A single downloaded FITS file represents a single wavelength at a single time, in AIA level 1.0 format.
+FITS files are downloaded into a temporary *_fits_temp* directory. This directory will be
+deleted after the downloaded images have been processed. A single downloaded FITS file 
+represents a single wavelength at a single time, in AIA level 1.0 format.
 
-After all FITS files of a sample are downloaded, they are further processed. First, because some files can be missing, the downloaded FITS files have to be assigned to individual time steps in the input cadence. For each time step, each file for each frequency is processed as follows:
+After all FITS files of a sample are downloaded, they are further processed. First, because
+some files can be missing, the downloaded FITS files have to be assigned to individual time
+steps in the input cadence. For each time step, each file for each frequency is processed
+as follows:
 
-1. FITS header values are verified to check if instrument or other issues
-   (e.g. an earth eclipse) are present on the image.
-   If yes, the image is discarded.
+1. FITS header values are verified to check if instrument or other issues (e.g. an earth 
+   eclipse) are present on the image. If yes, the image is discarded.
 2. AIA level 1 to level 1.5 processing is performed.
-3. The target active region coordinates with regard to solar rotation
-   and the time difference is calculated on the current image.
-4. A patch around the rotated coordinates is cut out
-5. The resulting data is clipped by predefined clipping ranges
-6. Then the image is saved to disk with half resolution as 8-bit JPEG.
-
-Open Points
-===========
-Various points are still open due to time constraints.
-
-Conceptional
-------------
-- A single active region can split into multiple new active regions and multiple active regions can merge into a single one. It has to be checked how such events manifest in HEK events to make sure no accidental bias between test and training sets is introduced.
-- Due to merging and splitting, but also due to bad data, some active region events might overlap each other spatially. Some verification is needed to be sure no two active regions of the test and training set overlap each other, otherwise parts of image patches are present in both sets.
-- A set of FITS header values is currently checked to see if instrument issues or an earth eclipse is visible on the target image. The checks used should be verified and it has to be checked if other methods exist.
+3. The target active region coordinates with regard to solar rotation and the time 
+   difference is calculated on the current image.
+4. A 512 x 512 patch around the rotated coordinates is cut out
+5. The resulting image data is clipped by predefined clipping ranges
+6. Then the image is saved to disk as 8-bit JPEG, scaled down to 256x256.
 
 

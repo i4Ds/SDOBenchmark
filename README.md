@@ -1,4 +1,4 @@
-###*SDOBenchmark* is a machine learning dataset intended for the prediction of solar flare eruptions.
+### *SDOBenchmark* is a machine learning dataset intended for the prediction of solar flare eruptions.
 
 Please visit http://i4ds.github.io/SDOBenchmark/ for details about the dataset itself
 
