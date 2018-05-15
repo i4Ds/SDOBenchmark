@@ -24,7 +24,7 @@ The following table lists all parameters and their defaults:
 | end           | Last time (exclusive) of the period for which samples are created | 01.01.2018 |
 | input_hours   | Number of hours for which input is provided before a prediction has to be made | 12 hours   |
 | output_hours  | Number of hours after the last input for which a prediction has to be made | 24 hours   |
-| time_steps | Input image time stamps after input start (i.e. starting 12h before prediction window) | [0, 7*60, 10*60+30, 11*60+50] minutes     |
+| time_steps | Input image time stamps after input start (i.e. starting 12h before prediction window) | [0, 7 * 60, 10 * 60 + 30, 11 * 60 + 50] minutes     |
 | seed          | Seed used to initialize the random number generator for sampling | 726527     |
 
 
