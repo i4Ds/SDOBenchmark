@@ -597,7 +597,7 @@ class OutputProcessor(object):
         # http://www.heliodocs.com/php/xdoc_print.php?file=$SSW/sdo/aia/idl/pubrel/aia_intscale.pro
         # https://github.com/Helioviewer-Project/jp2gen/blob/master/idl/sdo/aia/hv_aia_list2jp2_gs2.pro
         # Actually, decided to go with own clipping.
-        # TODO Recalculate the FITS header CRPIX values if need be
+        # CRPIX recalculation from CRVAL is not necessary: http://jsoc.stanford.edu/doc/keywords/JSOC_Keywords_for_metadata.pdf
         img = np.flipud(img)
         img = img / (current_map.meta["EXPTIME"] if "EXPTIME" in current_map.meta and current_map.meta["EXPTIME"] > 0 else 1) #  normalize for exposure
         pms = cls.IMAGE_PARAMS[wavelength]
