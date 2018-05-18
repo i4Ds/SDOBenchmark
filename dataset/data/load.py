@@ -35,6 +35,7 @@ def sample_path(sample_id: str, output_directory: str) -> str:
     ar_nr, p = sample_id.split("_",1)
     return os.path.join(output_directory, ar_nr, p)
 
+#TODO
 def sample_exists(dir_path: str, expectedFiles=48) -> bool:
     if not os.path.isdir(dir_path):
         return False
@@ -42,7 +43,7 @@ def sample_exists(dir_path: str, expectedFiles=48) -> bool:
         return True
     return False
 
-def _sample_images_exist(dir_path: str, series_name: str, query_time: dt.datetime):
+def _sample_series_exists(dir_path: str, series_name: str, query_time: dt.datetime):
     if not os.path.isdir(dir_path):
         return False
     wavelengths = {
@@ -64,6 +65,17 @@ def _sample_images_exist(dir_path: str, series_name: str, query_time: dt.datetim
                 wl.remove(img_wavelength)
                 if len(wl) == 0:
                     return True
+    return False
+
+def _sample_image_exists(dir_path: str, wavelength: str, query_time: dt.datetime):
+    if not os.path.isdir(dir_path):
+        return False
+    for img in [name for name in os.listdir(dir_path) if name.endswith(wavelength + '.jpg')]:
+        img_datetime_raw, img_wavelength = os.path.splitext(img)[0].split("__")
+        # is the image close enough in time?
+        img_datetime = dt.datetime.strptime(img_datetime_raw, "%Y-%m-%dT%H%M%S")
+        if abs(img_datetime - query_time) < dt.timedelta(minutes=15):
+            return True
     return False
 
 
@@ -114,7 +126,8 @@ class RequestSender(object):
                 time.sleep(0.5)
             else:
                 logger.info(f'received URLs for {sample_id} after {retries} retries')
-                self._output_queue.put((sample_id, request_urls))
+                if len(request_urls) > 0:
+                    self._output_queue.put((sample_id, request_urls))
                 break
 
     def terminate(self):
@@ -131,7 +144,7 @@ class RequestSender(object):
         for series_name in self.SERIES_NAMES:
             for hd in self._time_steps: # [] minutes after input start. (last = 10min before prediction period)
                 qt = start + dt.timedelta(minutes=hd)
-                if not _sample_images_exist(fp, series_name, qt):
+                if not _sample_series_exists(fp, series_name, qt):
                     query = f"{series_name}[{qt:%Y.%m.%d_%H:%M:%S_TAI}]"
                     seg = 'image'
 
@@ -180,16 +193,17 @@ class RequestSender(object):
                     continue
 
                 record_date_raw, record_wavelength = record_match.groups()
+
                 is_HMI = len(record_wavelength) == 1
-
-                extra_keys = None
-                if is_HMI:
-                    extra_keys = client.query(query.split('{')[0],key=self.HMI_KEYS)
-                    extra_keys = extra_keys.iloc[0]
-
                 record_date = dt.datetime.strptime(record_date_raw, self.RECORD_DATE_FORMAT_HMI if is_HMI else self.RECORD_DATE_FORMAT)
+
                 if abs(record_date - requested_date) < dt.timedelta(minutes=15):
-                    urls.append((record, url, extra_keys))
+                    if not _sample_image_exists(fp, record_wavelength, requested_date):
+                        extra_keys = None
+                        if is_HMI:
+                            extra_keys = client.query(query.split('{')[0],key=self.HMI_KEYS)
+                            extra_keys = extra_keys.iloc[0]
+                        urls.append((record, url, extra_keys))
 
         return urls
 
@@ -247,22 +261,22 @@ class ImageLoader(object):
             logger.debug("Downloading images of sample %s", sample_id)
 
             # Check whether the images already exist
-            if not sample_exists(sample_path(sample_id, self._output_directory), expectedFiles=len(records)):
-                fits_directory = sample_path(sample_id, self._fits_directory)
-                try:
-                    # Download image
-                    self._download_images(fits_directory, records)
+            #if not sample_exists(sample_path(sample_id, self._output_directory), expectedFiles=len(records)):
+            fits_directory = sample_path(sample_id, self._fits_directory)
+            try:
+                # Download image
+                self._download_images(fits_directory, records)
 
-                    # Enqueue next work item
-                    self._output_queue.put(sample_id)
+                # Enqueue next work item
+                self._output_queue.put(sample_id)
 
-                except Exception as e:
-                    logger.error("Error while downloading data for sample %s (is skipped): %s", sample_id, e)
-                    traceback.print_exc()
-                    # Delete sample directory because it contains inconsistent data
-                    #shutil.rmtree(sample_directory, ignore_errors=True)
-            else:
-                logger.info(f'Sample {sample_id} already exists')
+            except Exception as e:
+                logger.error("Error while downloading data for sample %s (is skipped): %s", sample_id, e)
+                traceback.print_exc()
+                # Delete sample directory because it contains inconsistent data
+                #shutil.rmtree(sample_directory, ignore_errors=True)
+            #else:
+                #logger.info(f'Sample {sample_id} already exists')
 
     def _download_images(self, fits_directory: str, records: List[Tuple[str, str]]):
         fits_directory = os.path.join(fits_directory, "_fits_temp")
