@@ -37,7 +37,6 @@ def main():
     log_level = logging.DEBUG if args.debug else logging.INFO
     util.configure_logging(log_level)
 
-    print(args.fitsdir)
     path_helper = util.PathHelper(args.directory, args.fitsdir)
 
     # Data loading
@@ -254,11 +253,12 @@ def create_output(
         raw_events = json.load(f)
     _, noaa_active_regions = extract_events(raw_events)
 
-    logger.info("Creating test samples")
-    _create_output(test_samples, test_directory, test_fits_directory, email_address, time_steps, noaa_active_regions)
 
     logger.info("Creating training samples")
     _create_output(training_samples, training_directory, training_fits_directory, email_address, time_steps, noaa_active_regions)
+
+    logger.info("Creating test samples")
+    _create_output(test_samples, test_directory, test_fits_directory, email_address, time_steps, noaa_active_regions)
 
 
 def _create_output(
@@ -296,7 +296,7 @@ def _create_image_output(
     target_samples = [
         (sample_id, sample_values)
         for sample_id, sample_values in samples.iterrows()
-        if not sample_exists(sample_path(sample_id, output_directory))
+        #if not sample_exists(sample_path(sample_id, output_directory))
     ]
     logger.info("%d samples will be created", len(target_samples))
 
