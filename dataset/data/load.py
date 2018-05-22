@@ -11,6 +11,7 @@ import time
 import math
 import warnings
 import simplejson as json
+import signal
 
 import traceback
 
@@ -224,8 +225,10 @@ def _requestCaching(q, cdir):
         if answer is None:
             break
         _answersCache[answer[0]] = answer[1]
+        s = signal.signal(signal.SIGINT, signal.SIG_IGN)
         with open(cdir, "w") as f:
             json.dump(_answersCache, f, iterable_as_array=True)
+        signal.signal(signal.SIGINT, s)
 
 
 class ImageLoader(object):
