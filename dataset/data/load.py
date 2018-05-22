@@ -220,15 +220,23 @@ class RequestSender(object):
 def _requestCaching(q, cdir):
     with open(cdir, "r") as f:
         _answersCache = json.load(f)
+    signal_received = False
+    
+    def signalHandler(sig, frame):
+        nonlocal signal_received
+        signal_received = (sig, frame)
+
     while True:
         answer = q.get()
         if answer is None:
             break
         _answersCache[answer[0]] = answer[1]
-        s = signal.signal(signal.SIGINT, signal.SIG_IGN)
+        s = signal.signal(signal.SIGINT, signalHandler)
         with open(cdir, "w") as f:
             json.dump(_answersCache, f, iterable_as_array=True)
         signal.signal(signal.SIGINT, s)
+        if signal_received:
+            s(*signal_received)
 
 
 class ImageLoader(object):
