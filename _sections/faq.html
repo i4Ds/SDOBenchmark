@@ -92,10 +92,12 @@ order: 3
     <button class="accordion">What are your thoughts on data augmentation?</button>
     <div class="accordionpanel">
         <p>
-            Except for horizontal flipping, I claim that all data augmentation will alter the underlying physics.<br />
+            Except for vertical flipping (upside down), I claim that all data augmentation will alter the underlying physics.<br />
             When you flip the images horizontally, the solar rotation, the perspective distortions and the spherical
             projection remain the same. And there is no known difference between Active Regions in the upper and
             the lower hemispheres of the sun.<br />
+            Horizontal flipping will make the Sun rotate in the other direction. It can work though if you process the images 
+            individually.<br />
             As for random cropping, keep in mind that you might run into the same issue as mentioned in
             "Why are there so few training samples?".
         </p>
