@@ -2,22 +2,22 @@ import numpy as np
 import math
 from sklearn.metrics import confusion_matrix
 
-goes_classes = ['free','A','B','C','M','X']
+goes_classes = ['quiet','A','B','C','M','X']
 
 
 def flux_to_class(f: float, only_main=False):
     'maps the peak_flux of a flare to one of the following descriptors: \
-    *free* = 1e-9, *B* >= 1e-7, *C* >= 1e-6, *M* >= 1e-5, and *X* >= 1e-4\
+    *quiet* = 1e-9, *B* >= 1e-7, *C* >= 1e-6, *M* >= 1e-5, and *X* >= 1e-4\
     See also: https://en.wikipedia.org/wiki/Solar_flare#Classification'
     decade = int(min(math.floor(math.log10(f)), -4))
-    main_class = goes_classes[decade + 9] if decade >= -8 else 'free'
-    sub_class = str(round(10 ** -decade * f)) if main_class != 'free' and only_main != True else ''
+    main_class = goes_classes[decade + 9] if decade >= -8 else 'quiet'
+    sub_class = str(round(10 ** -decade * f)) if main_class != 'quiet' and only_main != True else ''
     return main_class + sub_class
 
 def class_to_flux(c: str):
     'Inverse of flux_to_class \
     Maps a flare class (e.g. B6, M, X9) to a GOES flux value'
-    if c == 'free':
+    if c == 'quiet':
         return 1e-9
     decade = goes_classes.index(c[0])-9
     sub = float(c[1:]) if len(c) > 1 else 1
