@@ -221,7 +221,7 @@ def _requestCaching(q, cdir):
     with open(cdir, "r") as f:
         _answersCache = json.load(f)
     signal_received = False
-    
+
     def signalHandler(sig, frame):
         nonlocal signal_received
         signal_received = (sig, frame)
@@ -517,62 +517,67 @@ class OutputProcessor(object):
                         logger.error(f'Was unable to delete file {fits_file}, {e2}')
                     continue
 
-                if 'date-obs' not in current_map.meta:
-                    # parse the date from the file name
-                    # (current_map.date == date-obs, yet date-obs is missing for HMI)
-                    current_datetime_from_file_raw, _ = os.path.splitext(current_file)[0].split("_")
-                    current_map.meta['date-obs'] = dt.datetime.strptime(current_datetime_from_file_raw, "%Y-%m-%dT%H%M%S")
+                try:
+                    if 'date-obs' not in current_map.meta:
+                        # parse the date from the file name
+                        # (current_map.date == date-obs, yet date-obs is missing for HMI)
+                        current_datetime_from_file_raw, _ = os.path.splitext(current_file)[0].split("_")
+                        current_map.meta['date-obs'] = dt.datetime.strptime(current_datetime_from_file_raw, "%Y-%m-%dT%H%M%S")
 
-                if isinstance(current_map, sunpy.map.sources.AIAMap):
-                    # Check if map is usable
-                    if not self._is_usable(current_map):
-                        logger.warning("Discarding wavelength %s for sample %s", current_wavelength, sample_id)
-                        continue
+                    if isinstance(current_map, sunpy.map.sources.AIAMap):
+                        # Check if map is usable
+                        if not self._is_usable(current_map):
+                            logger.warning("Discarding wavelength %s for sample %s", current_wavelength, sample_id)
+                            continue
 
-                    # Convert to level 1.5
-                    if current_map.processing_level != 1.5:
+                        # Convert to level 1.5
+                        if current_map.processing_level != 1.5:
+                            try:
+                                with warnings.catch_warnings():
+                                    warnings.simplefilter("ignore")
+                                    current_map = sunpy.instr.aia.aiaprep(current_map)
+                            except Exception as e:
+                                logger.error(f'aia_prep failed: {fits_file}, {e}')
+                                continue
+                    else:
+                        # custom written hmiprep, see:
+                        # https://github.com/sunpy/sunpy/issues/1697, https://github.com/sunpy/sunpy/issues/2331
                         try:
                             with warnings.catch_warnings():
                                 warnings.simplefilter("ignore")
-                                current_map = sunpy.instr.aia.aiaprep(current_map)
+                                hmi_scale_factor = current_map.scale.axis1 / (0.6 * u.arcsec)
+                                current_map = current_map.rotate(recenter=True, scale=hmi_scale_factor.value, missing=0.0)
                         except Exception as e:
-                            logger.error(f'aia_prep failed: {fits_file}, {e}')
+                            logger.error(f'hmi_prep failed: {fits_file}, {e}')
                             continue
-                else:
-                    # custom written hmiprep, see:
-                    # https://github.com/sunpy/sunpy/issues/1697, https://github.com/sunpy/sunpy/issues/2331
-                    try:
-                        with warnings.catch_warnings():
-                            warnings.simplefilter("ignore")
-                            hmi_scale_factor = current_map.scale.axis1 / (0.6 * u.arcsec)
-                            current_map = current_map.rotate(recenter=True, scale=hmi_scale_factor.value, missing=0.0)
-                    except Exception as e:
-                        logger.error(f'hmi_prep failed: {fits_file}, {e}')
-                        continue
 
-                observation_date = current_map.date
-                # formerly current_map.date, which wasn't always present. Also, this is only used for image cropping, therefore some pixels of shift won't matter.
-                center_x, center_y = self._find_image_center(current_map, observation_date, region_events)
+                    observation_date = current_map.date
+                    # formerly current_map.date, which wasn't always present. Also, this is only used for image cropping, therefore some pixels of shift won't matter.
+                    center_x, center_y = self._find_image_center(current_map, observation_date, region_events)
 
-                # Cut patch out of image
-                # Sunpy maps assume a cartesian coordinate system which is already incorporated in the pixel conversion
-                patch_start_y = center_y - self.OUTPUT_SHAPE[0] // 2
-                patch_start_x = center_x - self.OUTPUT_SHAPE[1] // 2
-                img = current_map.data[
-                    patch_start_y:patch_start_y + self.OUTPUT_SHAPE[0],
-                    patch_start_x:patch_start_x + self.OUTPUT_SHAPE[1],
-                ]
-                assert img.shape == self.OUTPUT_SHAPE, f'image shape is {img.shape} instead of {self.OUTPUT_SHAPE}'
+                    # Cut patch out of image
+                    # Sunpy maps assume a cartesian coordinate system which is already incorporated in the pixel conversion
+                    patch_start_y = center_y - self.OUTPUT_SHAPE[0] // 2
+                    patch_start_x = center_x - self.OUTPUT_SHAPE[1] // 2
+                    img = current_map.data[
+                        patch_start_y:patch_start_y + self.OUTPUT_SHAPE[0],
+                        patch_start_x:patch_start_x + self.OUTPUT_SHAPE[1],
+                    ]
+                    assert img.shape == self.OUTPUT_SHAPE, f'image shape is {img.shape} instead of {self.OUTPUT_SHAPE}'
 
-                # Image processing steps
-                img = self._FITS_to_image(img, current_map, current_wavelength)
-                img_uint8 = (np.round(img * 255)).astype(np.uint8)
+                    # Image processing steps
+                    img = self._FITS_to_image(img, current_map, current_wavelength)
+                    img_uint8 = (np.round(img * 255)).astype(np.uint8)
 
-                # Save as image
-                output_file_path = os.path.join(output_directory, current_datetime.strftime("%Y-%m-%dT%H%M%S") + "__" + str(current_wavelength) + ".jpg")
-                im = Image.fromarray(img_uint8)
-                im = im.resize((256,256), Image.BICUBIC)
-                im.save(output_file_path, "jpeg")
+                    # Save as image
+                    output_file_path = os.path.join(output_directory, current_datetime.strftime("%Y-%m-%dT%H%M%S") + "__" + str(current_wavelength) + ".jpg")
+                    im = Image.fromarray(img_uint8)
+                    im = im.resize((256,256), Image.BICUBIC)
+                    im.save(output_file_path, "jpeg")
+                except Exception as e:
+                    logger.error(f"Unable to create image from file {fits_file}, skipping... {e}")
+                    for event in region_events:
+                        print(event['hpc_y'])
 
         logger.info("Created sample %s output", sample_id)
 
