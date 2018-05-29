@@ -10,8 +10,12 @@ def flux_to_class(f: float, only_main=False):
     *quiet* = 1e-9, *B* >= 1e-7, *C* >= 1e-6, *M* >= 1e-5, and *X* >= 1e-4\
     See also: https://en.wikipedia.org/wiki/Solar_flare#Classification'
     decade = int(min(math.floor(math.log10(f)), -4))
+    sub = round(10 ** -decade * f)
+    if decade < -4: # avoiding class 10
+        decade += sub // 10
+        sub = max(sub % 10, 1)
     main_class = goes_classes[decade + 9] if decade >= -8 else 'quiet'
-    sub_class = str(round(10 ** -decade * f)) if main_class != 'quiet' and only_main != True else ''
+    sub_class = str(sub) if main_class != 'quiet' and only_main != True else ''
     return main_class + sub_class
 
 def class_to_flux(c: str):
