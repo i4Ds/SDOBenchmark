@@ -36,7 +36,6 @@ def sample_path(sample_id: str, output_directory: str) -> str:
     ar_nr, p = sample_id.split("_",1)
     return os.path.join(output_directory, ar_nr, p)
 
-#TODO
 def sample_exists(dir_path: str, expectedFiles=48) -> bool:
     if not os.path.isdir(dir_path):
         return False

@@ -296,7 +296,7 @@ def _create_image_output(
     target_samples = [
         (sample_id, sample_values)
         for sample_id, sample_values in samples.iterrows()
-        #if not sample_exists(sample_path(sample_id, output_directory))
+        if not sample_exists(sample_path(sample_id, output_directory))
     ]
     logger.info("%d samples will be created", len(target_samples))
 
