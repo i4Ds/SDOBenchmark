@@ -1,5 +1,8 @@
 '''
 Create a small example dataset from the existing large dataset and meta_data files with the desired records.
+This excpects the large dataset to already be published.
+To publish the large dataset, I copied the the files on Ubunto with the following command:
+rsync -rv --include '*/' --exclude '*_1600.jpg' --exclude '*_4500.jpg' path/to/output/dir/ path/to/publish/dir
 '''
 
 import os
