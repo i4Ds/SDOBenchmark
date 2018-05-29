@@ -8,11 +8,12 @@ import datetime as dt
 class SDOBenchmarkGenerator(keras.utils.data_utils.Sequence):
     'Generates data for keras \
     Inspired by https://stanford.edu/~shervine/blog/keras-how-to-generate-data-on-the-fly.html'
-    def __init__(self, base_path, batch_size=32, dim=(4, 256, 256), channels=['magnetogram'], shuffle=True, augment=True, data_format="channels_last"):
+    def __init__(self, base_path, batch_size=32, dim=(4, 256, 256), channels=['magnetogram'], shuffle=True, augment=True, label_func=None, data_format="channels_last"):
         'Initialization'
         self.batch_size = batch_size
         self.base_path = base_path
         self.data_format = data_format
+        self.label_func = label_func
         self.dim = dim if len(dim) == 4 else (dim + (len(channels),) if data_format=='channels_last' else (len(channels),) + dim)
         self.channels = channels
         self.time_steps = [0, 7*60, 10*60+30, 11*60+50]
@@ -60,6 +61,8 @@ class SDOBenchmarkGenerator(keras.utils.data_utils.Sequence):
         X[1] = (data['start'] - pd.Timestamp('2012-01-01 00:00:00')).view('int64')
         X[1] /= (pd.Timestamp('2018-01-01 00:00:00') - pd.Timestamp('2012-01-01 00:00:00')).view('int64')
         y = np.array(data['peak_flux'])
+        if self.label_func is not None:
+            y = self.label_func(y)
         return X, y
 
     def loadImg(self, sample_id):
