@@ -12,7 +12,7 @@ import math
 import warnings
 import simplejson as json
 import signal
-
+import piexif
 import traceback
 
 import astropy.coordinates
@@ -523,11 +523,14 @@ class OutputProcessor(object):
                         current_datetime_from_file_raw, _ = os.path.splitext(current_file)[0].split("_")
                         current_map.meta['date-obs'] = dt.datetime.strptime(current_datetime_from_file_raw, "%Y-%m-%dT%H%M%S")
 
+                    im_flagged = False
                     if isinstance(current_map, sunpy.map.sources.AIAMap):
                         # Check if map is usable
                         if not self._is_usable(current_map):
-                            logger.warning("Discarding wavelength %s for sample %s", current_wavelength, sample_id)
-                            continue
+                            logger.warning("Flagged wavelength %s for sample %s", current_wavelength, sample_id)
+                            im_flagged = True
+                            #logger.warning("Discarding wavelength %s for sample %s", current_wavelength, sample_id)
+                            #continue
 
                         # Convert to level 1.5
                         if current_map.processing_level != 1.5:
@@ -572,7 +575,13 @@ class OutputProcessor(object):
                     output_file_path = os.path.join(output_directory, current_datetime.strftime("%Y-%m-%dT%H%M%S") + "__" + str(current_wavelength) + ".jpg")
                     im = Image.fromarray(img_uint8)
                     im = im.resize((256,256), Image.BICUBIC)
-                    im.save(output_file_path, "jpeg")
+                    if im_flagged:
+                        exif_dict = {"0th": {piexif.ImageIFD.ImageDescription: "flagged"}}
+                        exif_bytes = piexif.dump(exif_dict)
+                        im.save(output_file_path, "jpeg", exif=exif_bytes)
+                    else:
+                        im.save(output_file_path, "jpeg")
+
                 except Exception as e:
                     logger.error(f"Unable to create image from file {fits_file}, skipping... {e}")
                     for event in region_events:
