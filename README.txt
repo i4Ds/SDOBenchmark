@@ -1,3 +1,9 @@
+Noisy images
+============
+
+Some raw data from the satellite is flagged as noisy, e.g. because of a moon eclipse or because of a recalibration. The images were still created, yet they have a string "flagged" in the ImageDescription metadata (EXIF).
+
+
 File Structure
 ==============
 
