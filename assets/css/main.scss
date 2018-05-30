@@ -311,6 +311,11 @@ a {
 }
 
 #currentStateTable {
+    table td {
+        padding-right: 0;
+        padding-left: 0;
+    }
+    
     td:nth-child(4), td:nth-child(5) {
         display: none;
     }
