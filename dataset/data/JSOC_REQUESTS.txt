@@ -1,0 +1,41 @@
+Conversation with a JSOC team member about performing many requests (DRMS module, load.py):
+
+Hi Roman,
+Ok, great. Sure, there are some things we can do in the future that would help.
+It looks like, from a very small access-log excerpt, that you typically operate on a single or a few DRMS record at a time. For example, I see this string as the ds argument to a jsoc_fetch call:
+aia.lev1_euv_12s[2013.03.15_23:32:00_TAI]{image}
+and this is 7 records:
+[arta@rumble:/home/jsoc/cvs/Development/waystation/JSOC]$ show_info -c 'aia.lev1_euv_12s[2013.03.15_23:32:00_TAI]{image}'
+7 records match the query
+It would be better if you could work on bigger 'chunks' of records at one time (but not too big), perhaps maybe 10K or 20K at a time:
+
+[arta@rumble:/home/jsoc/cvs/Development/waystation/JSOC]$ show_info -c 'aia.lev1_euv_12s[2013.03.15_23:32:00_TAI/12h]{image}'
+25134 records match the query
+
+Since these chunks are bigger, the time taken to process them will also be longer. We can handle 6 export requests simultaneously, so if somebody were to make 6 requests, and they each took a long time to process, then nobody else would be able to perform an export during that time. So, if you perform a sequence of larger chunks, then you could sleep a bit (like 30 seconds) between requests to allow other users of the export system time to make calls between your calls.
+
+Also, fixing any bugs that cause duplicate actions, like you have already done, would help. We had been seeing actual downloads of the same exact file hundreds of times, for example:
+
+ #                   file
+--- ---------------------------------------
+
+116 /SUM58/D530175376/S00000/image_lev1.fits
+111 /SUM22/D602497535/S00000/image_lev1.fits
+106 /SUM2/D626535181/S00000/image_lev1.fits
+105 /SUM4/D604835720/S00000/image_lev1.fits
+102 /SUM60/D530404555/S00000/image_lev1.fits
+101 /SUM70/D530145015/S00000/image_lev1.fits
+ 99 /SUM37/D530140422/S00000/image_lev1.fits
+ 97 /SUM70/D547327888/S00000/image_lev1.fits
+ 97 /SUM53/D530103512/S00000/image_lev1.fits
+ 95 /SUM51/D531887832/S00000/image_lev1.fits
+
+There are not export requests, these are actual HTTP downloads of files. So, sometimes your script or the Py DRMS module would download the same file repeatedly.
+
+And, yes, there is the option of running a program locally, at Stanford. If you want, we could look at that. But the export system should work, so long as the rate of data download is not too great. If you need data as quick as possible, then we should explore running a program here and tarring up large files which could then be downloaded. But, usually the export system suffices.
+
+The export system is relatively basic, so it does not have much in the way of load balancing - in fact, I mentioned there are only 6 export 'streams'/'threads'. And those 6 threads share 2 machines. So, we are kind of limited. We don't have the resources to provide much more than that.
+
+At any rate, thanks for being patient!
+
+Art

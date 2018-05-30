@@ -567,6 +567,8 @@ class OutputProcessor(object):
                     ]
                     assert img.shape == self.OUTPUT_SHAPE, f'image shape is {img.shape} instead of {self.OUTPUT_SHAPE}'
 
+                    img[np.isnan(img)] = 0 # replace NaN with 0
+
                     # Image processing steps
                     img = self._FITS_to_image(img, current_map, current_wavelength)
                     img_uint8 = (np.round(img * 255)).astype(np.uint8)
@@ -584,8 +586,6 @@ class OutputProcessor(object):
 
                 except Exception as e:
                     logger.error(f"Unable to create image from file {fits_file}, skipping... {e}")
-                    for event in region_events:
-                        print(event['hpc_y'])
 
         logger.info("Created sample %s output", sample_id)
 
@@ -652,3 +652,5 @@ class OutputProcessor(object):
             img = (img - pms['dataMin']) / (pms['dataMax'] - pms['dataMin'])
 
         return img
+
+# TODO: JSOC Drms requests refactoring. See JSOC_REQUESTS.txt
