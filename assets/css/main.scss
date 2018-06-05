@@ -323,14 +323,14 @@ a {
     thead > tr {
         cursor: pointer;
 
-        &:after {
-            content: '\02795'; /* Unicode character for "plus" sign (+) */
+        /*&:after {
+            content: '\02795';
             font-size: 13px;
             color: #fff;
             float: right;
             line-height: 1em;
             margin-right: 0.4em;
-        }
+        }*/
     }
 
     &.active {
