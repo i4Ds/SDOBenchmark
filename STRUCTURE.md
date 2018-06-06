@@ -7,7 +7,7 @@ This dataset provides multiple samples of rendered SDO AIA and HMI FITS images o
 
 The data set is split into *training* and *test* samples. A single sample consists of 4 *time steps*, being each 1 hour apart, and a target peak flux.
 
-A time step consists of multiple 512x512 image patches. Each image patch corresponds to a single AIA wavelength or HMI image. If images for all wavelengths are available, a single time step thus contains 10 image patches, less otherwise. All images of a sample are within one folder, therefore containing up to 40 images.
+A time step consists of multiple 256x256 image patches. Each image patch corresponds to a single AIA wavelength or HMI image. If images for all wavelengths are available, a single time step thus contains 10 image patches, less otherwise. All images of a sample are within one folder, therefore containing up to 40 images.
 
 The training and test sets are sampled in a way which prevents training set bias to influence test set results: Active regions in the training and test sets are mutually exclusive.
 
