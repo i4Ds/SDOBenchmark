@@ -92,7 +92,7 @@ def load_all_goes_profiles(goes_directory: str) -> pd.DataFrame:
             for current_file in os.listdir(goes_directory)
             if os.path.exists(os.path.join(goes_directory, current_file)) and current_file.startswith("g15")
         ])
-        goes.to_csv(all_path, sep=",", index_label="time_tag")
+        goes.sort_index().to_csv(all_path, sep=",", index_label="time_tag")
     return goes
 
 def _parse_goes_flux(file_path: str) -> pd.DataFrame:

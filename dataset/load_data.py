@@ -128,6 +128,9 @@ def transform_raw(
     with open(events_raw_path, "r") as f:
         raw_events = json.load(f)
 
+    # Loading goes curves on demand
+    goes = None
+
     logger.info('Extracting events from raw...')
     swpc_flares, noaa_active_regions = extract_events(raw_events)
     logger.debug(
@@ -136,28 +139,26 @@ def transform_raw(
 
     ranges_path = os.path.join(output_directory, f"ranges_{date_suffix}.csv")
 
-    # Loading goes curves on demand
-    goes = None
-
     if os.path.isfile(ranges_path):
         logger.info("Using existing ranges at %s", ranges_path)
     else:
         logger.info("Ranges not found, will be computed to %s", ranges_path)
-
-        mapped_flares, unmapped_flares = map_flares(swpc_flares, noaa_active_regions, raw_events)
-        logger.debug(
-            "Created flare mapping, resulting in %d mapped and %d unmapped dataset",
-            len(mapped_flares), len(unmapped_flares)
-        )
 
         if goes is None:
             # load GOES curves
             logger.info('Loading GOES curves...')
             goes = load_all_goes_profiles(os.path.join(input_directory, "goes"))
 
+        logger.info('Mapping flares...')
+        mapped_flares, unmapped_flares = map_flares(swpc_flares, noaa_active_regions, raw_events)
+        logger.debug(
+            "Created flare mapping, resulting in %d mapped and %d unmapped dataset",
+            len(mapped_flares), len(unmapped_flares)
+        )
+
         logger.info('Computing ranges. This might take an hour or two...')
         ranges = active_region_time_ranges(
-            input_duration, output_duration, noaa_active_regions, mapped_flares, unmapped_flares, goes
+            input_duration, output_duration, noaa_active_regions, mapped_flares, unmapped_flares, goes, os.path.join(input_directory, "goes")
         )
         logger.info("Computed ranges")
 

@@ -6,6 +6,11 @@ from typing import List, Tuple, Dict
 import intervaltree
 import numpy as np
 import pandas as pd
+import os
+import csv
+import math
+
+from multiprocessing import Pool
 
 import dataset.util as util
 
@@ -20,7 +25,7 @@ def extract_events(raw_events: List[dict]) -> Tuple[List[dict], Dict[int, Tuple[
         event['endtime'] = util.hek_date(event["event_endtime"])
         if event["event_type"] == "FL":
             event['peaktime'] = util.hek_date(event["event_peaktime"])
-            event['fl_peakflux'] = _class_to_flux(event["fl_goescls"])
+            event['fl_peakflux'] = class_to_flux(event["fl_goescls"]) / 0.85
 
         # Extract NOAA active region events and group them by their number
         if event["event_type"] == "AR" and event["frm_name"] == "NOAA SWPC Observer":
@@ -162,10 +167,12 @@ def active_region_time_ranges(
         noaa_regions: Dict[int, Tuple[dt.datetime, dt.datetime, List[dict]]],
         flare_mapping: List[Tuple[dict, int]],
         unmapped_flares: List[dict],
-        goes: pd.DataFrame
+        goes: pd.DataFrame,
+        goes_directory: str
 ) -> Dict[int, intervaltree.IntervalTree]:
 
     # Create interval tree of unmapped ranges for fast lookup later on
+    global unmapped_ranges
     unmapped_ranges = intervaltree.IntervalTree()
     for event in unmapped_flares:
         unmapped_start = event["starttime"]
@@ -180,172 +187,236 @@ def active_region_time_ranges(
     mapped_flares_entire_sun.merge_overlaps()
 
     # Construct interval where GOES > 8e-9
-    goes_interval = intervaltree.IntervalTree()
-    interval_start_date = None
-    prev_flux = 0
-    prev_date = None
-    for date, flux in goes.itertuples():
-        if max(flux, prev_flux) > 8e-9: # some outlier stability
-            if interval_start_date is None:
-                interval_start_date = date
-        else:
-            if interval_start_date is not None:
-                if date - interval_start_date > dt.timedelta(minutes=5):
-                    # only add a GOES interval if it's at least 5 minutes long
-                    goes_interval.addi(interval_start_date, prev_date)
-                interval_start_date = None
-        prev_flux = flux
-        prev_date = date
+    goes_interval_tuples = []
+    goes_interval_tuple_path = os.path.join(goes_directory, 'goes_interval_tuples.csv')
+    if not os.path.exists(goes_interval_tuple_path):
+        logger.info("GOES interval tuples not found, will be created at %s", goes_interval_tuple_path)
+        interval_start_date = None
+        prev_flux = 0
+        prev_date = None
+        for date, flux in goes.itertuples():
+            if max(flux, prev_flux) > 8e-9: # some outlier stability
+                if interval_start_date is None:
+                    interval_start_date = date
+            else:
+                if interval_start_date is not None:
+                    if date - interval_start_date > dt.timedelta(minutes=5):
+                        # only add a GOES interval if it's at least 5 minutes long
+                        goes_interval_tuples.append((interval_start_date, prev_date))
+                    interval_start_date = None
+            prev_flux = flux
+            prev_date = date
+        with open(goes_interval_tuple_path, 'w') as csvfile:
+            csvwriter = csv.writer(csvfile, delimiter=';')
+            for t in goes_interval_tuples:
+                csvwriter.writerow(t)
+    else:
+        with open(goes_interval_tuple_path) as csvfile:
+            readCSV = csv.reader(csvfile, delimiter=';')
+            for interval_start_date, prev_date in readCSV:
+                goes_interval_tuples.append((
+                    dt.datetime.strptime(interval_start_date.split('.')[0], '%Y-%m-%d %H:%M:%S'),
+                    dt.datetime.strptime(prev_date.split('.')[0], '%Y-%m-%d %H:%M:%S')
+                ))
+    goes_interval = intervaltree.IntervalTree.from_tuples(goes_interval_tuples)
+    del goes_interval_tuples
 
     # tree where GOES > 8e-9 but no (mapped) dataset present
+    global goes_noflare
     goes_noflare = goes_interval - mapped_flares_entire_sun
 
-    total_free_count = 0
-    total_free_sum = dt.timedelta(seconds=0)
+    # mp test
+    global goes_global
+    goes_global = goes
+    global flare_mapping_global
+    flare_mapping_global = flare_mapping
+    global ar_range_params
+    ar_range_params = [input_duration, output_duration]
+
+    ar_pool = Pool(10)
+    ar_pool_res = ar_pool.map(_process_ar_range, noaa_regions.items())
+    print('noaa regions mapped!')
 
     result = dict()
-    for noaa_id, (region_start, region_end, region_events) in noaa_regions.items():
-        flares = list(sorted(
-            (flare_event for flare_event, flare_region_id in flare_mapping if flare_region_id == noaa_id),
-            key=lambda flare_event: flare_event["peaktime"]
-        ))
+    for noaa_id, updated_ranges in ar_pool_res:
+        result[noaa_id] = updated_ranges
 
-        # Create initial free range (add 1 second to end because region_end is inclusive but intervaltree is exclusive)
-        free_ranges = intervaltree.IntervalTree()
-        free_ranges.addi(region_start + input_duration, region_end + dt.timedelta(seconds=1), ("free", None))
+    logger.warning("Approximating peak flux for of free ranges as 1e-9")
 
-        # Process each flare
-        flare_ranges = intervaltree.IntervalTree()
-        for idx, flare_event in enumerate(flares):
-            flare_peak = flare_event["peaktime"]
-            flare_class = flare_event["fl_goescls"]
+    return result
 
-            # Calculate best case range
-            # 1 second deltas are used to make sure values are correctly inclusive/exclusive in ranges
-            range_min = max(flare_peak - output_duration + dt.timedelta(seconds=1), region_start + input_duration)
-            range_max = min(flare_peak + output_duration, region_end + dt.timedelta(seconds=1))
+def _process_ar_range(ar_ev):
+    noaa_id, (region_start, region_end, region_events) = ar_ev
+    input_duration, output_duration = ar_range_params
+
+    flares = list(sorted(
+        (flare_event for flare_event, flare_region_id in flare_mapping_global if flare_region_id == noaa_id),
+        key=lambda flare_event: flare_event["peaktime"]
+    ))
+
+    # Create initial free range (add 1 second to end because region_end is inclusive but intervaltree is exclusive)
+    free_ranges = intervaltree.IntervalTree()
+    free_ranges.addi(region_start + input_duration, region_end + dt.timedelta(seconds=1), ("free", None))
+
+    # Process each flare
+    flare_ranges = intervaltree.IntervalTree()
+
+    flare_goes_data = [None] * len(flares)
+
+    for idx, flare_event in enumerate(flares):
+        flare_peak = flare_event["peaktime"]
+        flare_class = flare_event["fl_goescls"]
+
+        # Calculate best case range
+        # 1 second deltas are used to make sure values are correctly inclusive/exclusive in ranges
+        range_min = max(flare_peak - output_duration + dt.timedelta(seconds=1), region_start + input_duration)
+        range_max = min(flare_peak + output_duration, region_end + dt.timedelta(seconds=1))
+        if range_max - range_min >= output_duration:
+            event_range = intervaltree.IntervalTree()
+            event_range.addi(range_min, range_max, (flare_class, flare_peak))
+
+            if flare_goes_data[idx] is None:
+                flare_goes_data[idx] = goes_global[(goes_global.index >= flare_event["starttime"]) &
+                                                    (goes_global.index <= flare_event["endtime"])]
+
+            if len(flare_goes_data[idx]) > 0:
+                flare_event['goes_peakflux'] = max(flare_goes_data[idx]['A_FLUX'])
+                flare_event['goes_peaktime'] = flare_goes_data[idx]['A_FLUX'].idxmax()
+            else:
+                flare_event['goes_peakflux'] = class_to_flux(flare_event['fl_goescls']) / 0.85
+                flare_event['goes_peaktime'] = flare_event['peaktime']
 
             # iff there's a bigger flare around from the same AR (HEK),
             # check with GOES curve for correct cuts.
             for idx2, flare_event2 in enumerate(flares):
-                if idx2 == idx:
-                    continue
-
-                # Does a flare of the same region overlap?
-                if flare_event["starttime"] <= flare_event2["endtime"] and flare_event["endtime"] >= flare_event2["starttime"]:
-
-                    # Cut where flare_event2's flare flux becomes higher than flare_event's peak_flux
-                    if flare_event2["starttime"] < flare_event["endtime"]:
-                        overlap_range = goes[(goes.index > flare_event2["starttime"]) & (goes.index <= flare_event["endtime"])]
-                        # cut when two successive GOES values are higher than fl_peakflux
-                        last_over_thresh = False
-                        for (f_time, f_val) in overlap_range.itertuples():
-                            if f_val > flare_event["fl_peakflux"]:
-                                if last_over_thresh is False:
-                                    last_over_thresh = True
-                                else:
-                                    range_max = f_time - dt.timedelta(seconds=30)
-                                    break
-                            else:
-                                last_over_thresh = False
-                    elif flare_event2["endtime"] > flare_event["starttime"]:
-                        overlap_range = goes[(goes.index > flare_event["starttime"]) & (goes.index <= flare_event2["endtime"])]
-                        overlap_range = overlap_range[::-1]
-                        # cut when two successive GOES values are higher than peak_flux
-                        last_over_thresh = False
-                        for (f_time, f_val) in overlap_range.itertuples():
-                            if f_val > flare_event["fl_peakflux"]:
-                                if last_over_thresh is False:
-                                    last_over_thresh = True
-                                else:
-                                    range_min = f_time + dt.timedelta(seconds=30)
-                                    break
-                            else:
-                                last_over_thresh = False
-
-            if range_max - range_min >= output_duration:
-                assert range_min <= flare_peak < range_max
-                assert region_start <= flare_peak < region_end
-                assert range_min < range_max
-                assert range_min - input_duration >= region_start
-
-                flare_ranges.addi(range_min, range_max, (flare_class, flare_peak))
-
-            # Remove range around flare from free areas
-            free_ranges.chop(flare_peak - output_duration + dt.timedelta(seconds=1), flare_peak + output_duration)
+                if flare_event2['fl_peakflux'] > flare_event['fl_peakflux'] * 1.1:
+                    if flare_goes_data[idx2] is None:
+                        flare_goes_data[idx2] = goes_global[(goes_global.index >= flare_event2["starttime"]) &
+                        (goes_global.index <= flare_event2["endtime"])]
+                    higher_range = flare_goes_data[idx2]
 
 
-        # Remove free ranges where GOES > 8e-9 but no flare happens on the entire sun
-        free_ranges -= goes_noflare
+                    if len(higher_range) <= 0:
+                        logger.warning("No GOES values found for flare")
 
-        # Merge free and flare ranges
-        region_ranges = free_ranges | flare_ranges
+                    # rewrite with numpy indexing
+                    a = np.array(np.logical_or(higher_range['A_FLUX'] > flare_event['goes_peakflux'],
+                         higher_range['A_FLUX'].shift(1) > flare_event['goes_peakflux']))
 
-        # Remove unmapped ranges from result
-        for current_chop_interval in unmapped_ranges:
+                    if len(a) <= 0:
+                        continue
+
+                    block_starts = np.where(np.logical_and(a[1:], np.invert(a[:-1])))[0]
+                    block_starts += 1
+                    if a[0] == True:
+                        block_starts = np.insert(block_starts, 0, 0)
+
+                    block_ends = np.where(np.logical_and(np.invert(a[1:]), a[:-1]))[0]
+                    if a[-1] == True:
+                        block_ends = np.append(block_ends, len(a) - 1)
+
+                    for i in range(len(block_starts)):
+                        if block_starts[i] != block_ends[i]: # no need to chop out a range of 0
+                            event_range.chop(higher_range.index[block_starts[i]],higher_range.index[block_ends[i]] + dt.timedelta(seconds=1))
+
+
+            # check if there are any ranges left that satisfy our criteria
+            for r in event_range:
+                if r.end - r.begin >= output_duration:
+                    assert r.begin <= flare_peak < r.end
+                    assert region_start <= flare_peak < region_end
+                    assert r.begin < r.end
+                    assert r.begin - input_duration >= region_start
+                    '''larger_peak_during_range = [f for f in flares if
+                                                f["fl_peakflux"] > _class_to_flux(r.data[0]) * 1.1 and
+                                                f["peaktime"] >= r.begin and
+                                                f["peaktime"] <= r.end and
+                                                len(goes_global[(goes_global.index >= f["starttime"]) &
+                                                            (goes_global.index <= f["endtime"])]) > 0
+                                                ]
+                    assert len(larger_peak_during_range) == 0'''
+
+                    flare_ranges.addi(r.begin, r.end, r.data)
+
+        # Remove range around flare from free areas
+        free_ranges.chop(flare_peak - output_duration + dt.timedelta(seconds=1), flare_peak + output_duration)
+
+    # Remove free ranges where GOES > 8e-9 but no flare happens on the entire sun
+    free_ranges -= goes_noflare
+
+    # Merge free and flare ranges
+    region_ranges = free_ranges | flare_ranges
+
+    # Remove unmapped ranges from result
+    for current_chop_interval in unmapped_ranges:
+        region_ranges.chop(current_chop_interval.begin, current_chop_interval.end)
+
+        if len(region_ranges[current_chop_interval]) > 0:
+            # This seems to be a bug in the library where the chop operation does nothing
+            # Creating a new tree seems to fix it
+            region_ranges = intervaltree.IntervalTree(set(region_ranges))
             region_ranges.chop(current_chop_interval.begin, current_chop_interval.end)
 
-            if len(region_ranges[current_chop_interval]) > 0:
-                # This seems to be a bug in the library where the chop operation does nothing
-                # Creating a new tree seems to fix it
-                region_ranges = intervaltree.IntervalTree(set(region_ranges))
-                region_ranges.chop(current_chop_interval.begin, current_chop_interval.end)
+        assert len(region_ranges[current_chop_interval]) == 0
 
-            assert len(region_ranges[current_chop_interval]) == 0
+    # Remove ranges which are too small
+    intervals_to_remove = [
+        interval for interval in region_ranges
+        if interval.end - interval.begin < output_duration
+    ]
+    for current_interval in intervals_to_remove:
+        assert current_interval in region_ranges
+        region_ranges.discardi(*current_interval)
+        assert current_interval not in region_ranges
 
-        # Remove ranges which are too small
-        intervals_to_remove = [
-            interval for interval in region_ranges
-            if interval.end - interval.begin < output_duration
-        ]
-        for current_interval in intervals_to_remove:
-            assert current_interval in region_ranges
-            region_ranges.discardi(*current_interval)
-            assert current_interval not in region_ranges
+    # Add peak flux to each range
+    updated_ranges = intervaltree.IntervalTree()
+    for current_interval in region_ranges:
+        current_class, current_peak_time = current_interval.data
 
-        # Add peak flux to each range
-        updated_ranges = intervaltree.IntervalTree()
-        for current_interval in region_ranges:
-            current_class, current_peak_time = current_interval.data
+        # We're specifically using the manually labeled flux here, not the GOES flux.
+        if current_class == "free":
+            current_peak_flux = np.float128("1e-9")
+        else:
+            current_peak_flux = class_to_flux(current_class) / 0.85
 
-            if current_class == "free":
-                current_peak_flux = np.float128("1e-9")
-                total_free_count += 1
-                total_free_sum += current_interval.end - current_interval.begin
-            else:
-                current_peak_flux = _class_to_flux(current_class)
+        # if current_peak_flux is not None:
+        updated_ranges.addi(
+            current_interval.begin,
+            current_interval.end,
+            (current_class, current_peak_time, current_peak_flux)
+        )
 
-            #if current_peak_flux is not None:
-            updated_ranges.addi(
-                current_interval.begin,
-                current_interval.end,
-                (current_class, current_peak_time, current_peak_flux)
-            )
+    if len(region_ranges) != len(updated_ranges):
+        logger.debug("Removed %d free intervals which had bad GOES data", len(region_ranges) - len(updated_ranges))
 
-        if len(region_ranges) != len(updated_ranges):
-            logger.debug("Removed %d free intervals which had bad GOES data", len(region_ranges) - len(updated_ranges))
+    logger.info("Computed ranges for AR %s", noaa_id)
+    return (noaa_id, updated_ranges)
 
-        result[noaa_id] = updated_ranges
-
-    logger.warning("Approximating peak flux for %d free ranges (total %s) as 1e-9", total_free_count, str(total_free_sum))
-
-    return result
+goes_classes = ['quiet','A','B','C','M','X']
 
 
-def _class_to_flux(goes_class: str) -> np.float128:
-    scale = {
-        "A": np.float128(1e-8),
-        "B": np.float128(1e-7),
-        "C": np.float128(1e-6),
-        "M": np.float128(1e-5),
-        "X": np.float128(1e-4)
-    }[goes_class[0]]
+def flux_to_class(f: float, only_main=False):
+    'maps the peak_flux of a flare to one of the following descriptors: \
+    *quiet* = 1e-9, *B* >= 1e-7, *C* >= 1e-6, *M* >= 1e-5, and *X* >= 1e-4\
+    See also: https://en.wikipedia.org/wiki/Solar_flare#Classification'
+    decade = int(min(math.floor(math.log10(f)), -4))
+    sub = round(10 ** -decade * f)
+    if decade < -4: # avoiding class 10
+        decade += sub // 10
+        sub = max(sub % 10, 1)
+    main_class = goes_classes[decade + 9] if decade >= -8 else 'quiet'
+    sub_class = str(sub) if main_class != 'quiet' and only_main != True else ''
+    return main_class + sub_class
 
-    # https://www.ngdc.noaa.gov/stp/satellite/goes/doc/GOES_XRS_readme.pdf
-    # "To get the true fluxes, divide the short band flux by 0.85 and divide the long band flux by 0.7"
-    scale = scale / 0.85
-
-    return scale * np.float128(goes_class[1:])
+def class_to_flux(c: str):
+    'Inverse of flux_to_class \
+    Maps a flare class (e.g. B6, M, X9) to a GOES flux value'
+    if c == 'quiet':
+        return 1e-9
+    decade = goes_classes.index(c[0])-9
+    sub = float(c[1:]) if len(c) > 1 else 1
+    return round(10 ** decade * sub, 10)
 
 
 def _assert_active_region_time_ranges(
@@ -563,6 +634,18 @@ def _verify_sampling_internal(
         # not necessarily the case, but the way we process events this holds true.
         assert sample_values.end + output_duration <= region_end + dt.timedelta(seconds=1), \
             f"Sample {sample_id} output end {sample_values.end + output_duration} ends after the corresponding region end {region_end + dt.timedelta(seconds=1)}"
+
+    # Verify that there's no higher peak during a sample, from the same AR
+    '''for sample_id, sample_values in samples.iterrows():
+        overlapping_higher_peaks = samples.loc[(samples['noaa_num'] == sample_values.noaa_num) &
+                    (samples.index != sample_id) &
+                    (samples['peak'] >= sample_values['start'] + output_duration) &
+                    (samples['peak'] <= sample_values['end'] + output_duration) &
+                    (samples['peak_flux'] > sample_values['peak_flux'] * 1.1) # threshold
+        ]
+        assert len(overlapping_higher_peaks) == 0, f"During sample {sample_id} with peak {sample_values['peak_flux']}, \
+        there's a higher peak value {overlapping_higher_peaks.iloc[0]['peak_flux']} from sample {overlapping_higher_peaks.index[0]}"'''
+
 
     # Very slow
     '''logger.info("Verifying that peak seems present in the GOES curve (GOES flux > peak_flux)")
