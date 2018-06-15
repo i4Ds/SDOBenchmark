@@ -1,5 +1,6 @@
 '''
 Delete all the files that do not match the queries
+This script was used beginning of June 2017 to purge some unwanted samples. Execute with care...
 '''
 
 import os
