@@ -1,6 +1,8 @@
 '''
 Delete all the files that do not match the queries
-This script was used beginning of June 2017 to purge some unwanted samples. Execute with care...
+This script was used beginning of June 2017 to purge some unwanted samples, and for checking after regeneration of
+some of the samples of the dataset at the end of June 2017.
+Execute with care...
 '''
 
 import os
@@ -46,15 +48,18 @@ for phase in ['training', 'test']:
                                 closest_files[img_wavelength][i_time] = (query_time_diff, img)
                             else:
                                 if query_time_diff >= current_val[0]:
-                                    os.remove(os.path.join(path, img))
+                                    print('Would remove ' + os.path.join(path, img))
+                                    #os.remove(os.path.join(path, img))
                                     removed += 1
                                 else:
-                                    os.remove(os.path.join(path, current_val[1]))
+                                    print('Would remove ' + os.path.join(path, current_val[1]))
+                                    #os.remove(os.path.join(path, current_val[1]))
                                     removed += 1
                                     closest_files[img_wavelength][i_time] = (query_time_diff, img)
 
                 if not found_matching_time:
-                    os.remove(os.path.join(path, img))
+                    print('Would remove ' + os.path.join(path, img) + ", no time.")
+                    #os.remove(os.path.join(path, img))
                     removed += 1
             if removed > 0:
                 print(f'Removed {removed} files from sample {path}')
@@ -69,6 +74,6 @@ for phase in ['training', 'test']:
                 if os.path.isdir(rp):
                     sample_id = dir + '_' + range_dir
                     if sample_id not in csv_file.index:
-                        print(f'Sample {sample_id} does not exist!')
-                        shutil.rmtree(rp)
+                        print(f'Sample folder {sample_id} does not exist in meta_data!')
+                        #shutil.rmtree(rp)
 print('Done purging')
