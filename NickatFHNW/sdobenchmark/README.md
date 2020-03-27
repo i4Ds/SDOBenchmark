@@ -2,19 +2,6 @@
 
 ## Training and Test Results
 
-DATASET: 
-
-* IMG_SIZE = 50
-  * BATCH_SIZE = 100
-    * EPOCHS = 1
-      * ~0.5
-    * EPOCHS = 5
-      * ~0.69 - 0.79
-* IMG_SIZE = 256
-  * BATCH_SIZE = 100
-    * EPOCHS = 5
-      * ~0.515
-
 
 
 | DATASET                | IMG_SIZE | BATCH_SIZE | EPOCHS | TEST_AMOUNT | RESULT           |
