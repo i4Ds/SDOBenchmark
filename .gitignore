@@ -182,5 +182,9 @@ venv.bak/
 # mypy
 .mypy_cache/
 
+dataset*
+sdobenchmarkvenv*
+
+
 
 # End of https://www.gitignore.io/api/linux,python,pycharm+all
